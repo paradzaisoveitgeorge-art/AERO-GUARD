@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Respond to Clients{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Respond to Clients</h1>
+    <p class="page-header__subtitle">Chat, call back, or send a demo video</p>
+  </div>
+</div>
+
+<div class="respond-shell">
+  <div class="thread-list">
+    {% for t in threads %}
+    <a href="{{ url_for('provider_respond', thread=t.id) }}" class="thread-item {{ 'active' if t.id == active.id else '' }}">
+      <div class="thread-item__top">
+        <div class="thread-item__agency">{{ t.agency }}</div>
+        {% if t.unread > 0 %}<span class="thread-item__unread">{{ t.unread }}</span>{% endif %}
+      </div>
+      <div class="thread-item__agent">{{ t.agent }}</div>
+      <div class="thread-item__last">{{ t.last }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="respond-main">
+    <div class="chat-pane">
+      <div class="chat-pane__header">
+        <b>{{ active.agency }}</b> &middot; agent {{ active.agent }} &middot; ticket {{ active.id }}
+      </div>
+      <div class="chat-pane__messages">
+        {% for m in active.messages %}
+        <div class="chat-msg {{ m['from'] }}">
+          <div class="chat-msg__bubble">
+            <div>{{ m.text }}</div>
+            <div class="chat-msg__time">{{ m.t }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <form class="chat-pane__input" method="post" action="{{ url_for('reply_thread', thread_id=active.id) }}">
+        <input name="text" placeholder="Type a reply…" required />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+
+    <div class="respond-tools">
+      <div class="respond-tools__label">Response tools</div>
+      <button type="button" class="tool-btn" onclick="alert('PNR audit · compliant')">&#9889; Quick Audit PNR</button>
+      <button type="button" class="tool-btn" onclick="alert('Demo video link sent')">&#128249; Send demo video</button>
+      <button type="button" class="tool-btn" onclick="alert('Dialing…')">&#128222; Call back agent</button>
+      <button type="button" class="tool-btn" onclick="alert('Transcript emailed')">&#128231; Email transcript</button>
+      <a class="tool-btn" style="text-decoration:none;" href="{{ url_for('provider_emulate') }}">&#8987; Emulate their PCC</a>
+      <a class="tool-btn" style="text-decoration:none;" href="{{ url_for('provider_escalations') }}">&#11014; Escalate to L2</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

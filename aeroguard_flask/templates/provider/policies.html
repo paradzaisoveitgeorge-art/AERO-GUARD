@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Terms, Policies & Products{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Terms, Policies &amp; Products</h1>
+    <p class="page-header__subtitle">GDS &middot; NDC &middot; OTA agreements and AERO-GUARD policy library</p>
+  </div>
+</div>
+
+<div class="policy-grid">
+  {% for d in docs %}
+  <div class="card policy-card">
+    <div>
+      <div class="policy-card__cat">{{ d.cat }}</div>
+      <div class="policy-card__name">{{ d.name }}</div>
+      <div class="policy-card__version">Version {{ d.v }}</div>
+    </div>
+    <button class="btn" style="background: var(--slate-800); color: var(--slate-100);" onclick="alert('Opening {{ d.name }}')">Open</button>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

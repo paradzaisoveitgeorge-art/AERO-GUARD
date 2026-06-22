@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "AERO-GUARD Streamlit App",
+      "runtimeExecutable": "streamlit",
+      "runtimeArgs": ["run", "aero_guard/frontend/app.py"],
+      "port": 8501
+    },
+    {
+      "name": "AERO-GUARD React Client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "aero-guard/client",
+      "port": 5173
+    },
+    {
+      "name": "AERO-GUARD Flask Clone",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app.py"],
+      "cwd": "aeroguard_flask",
+      "port": 5050,
+      "autoPort": true
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Agency ADM Audits{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Agency ADM Audits (AAA)</h1>
+    <p class="page-header__subtitle">Track airline debit memos by agency, period and liability</p>
+  </div>
+</div>
+
+<form method="get" id="audit-filters" class="range-bar">
+  {% for r in ["DAY", "WEEK", "MONTH"] %}
+  <button type="submit" name="range" value="{{ r }}" class="range-pill {{ 'active' if range == r else '' }}">{{ r }}</button>
+  {% endfor %}
+  <input type="hidden" name="sortHealth" value="{{ '1' if sort_health else '0' }}" />
+  <div style="margin-left:auto;">
+    <label class="filter-select">
+      <span>Agency:</span>
+      <select name="agency" onchange="this.form.submit()">
+        <option value="ALL" {{ "selected" if filter_agency == "ALL" else "" }}>ALL</option>
+        {% for name in agency_names %}
+        <option value="{{ name }}" {{ "selected" if name == filter_agency else "" }}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+</form>
+<script>
+// Keep the current range selection when the agency dropdown triggers a submit.
+document.querySelectorAll('#audit-filters select[name="agency"]').forEach((sel) => {
+  sel.addEventListener('change', (e) => {
+    const form = e.target.form;
+    let rangeInput = form.querySelector('input[name="range"]');
+    if (!rangeInput) {
+      rangeInput = document.createElement('input');
+      rangeInput.type = 'hidden';
+      rangeInput.name = 'range';
+      form.appendChild(rangeInput);
+    }
+    rangeInput.value = "{{ range }}";
+  });
+});
+</script>
+
+<div class="stat-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:0; margin-bottom:24px;">
+  <div class="stat-card tone-amber">
+    <div class="stat-card__label">ADMs this period</div>
+    <div class="stat-card__value">23</div>
+    <div class="stat-card__sub">&darr; 12% vs prev</div>
+  </div>
+  <div class="stat-card tone-emerald">
+    <div class="stat-card__label">Amount saved</div>
+    <div class="stat-card__value">$68,400</div>
+    <div class="stat-card__sub">&uarr; 18% vs prev</div>
+  </div>
+  <div class="stat-card" style="border-color: rgba(244,63,94,0.3);">
+    <div class="stat-card__label">Amount lost</div>
+    <div class="stat-card__value" style="color:#fb7185;">$13,920</div>
+    <div class="stat-card__sub" style="color:#fb7185;">&darr; 6% vs prev</div>
+  </div>
+  <div class="stat-card tone-sky">
+    <div class="stat-card__label">Potential savings</div>
+    <div class="stat-card__value">$22,300</div>
+    <div class="stat-card__sub">if 100% compliant</div>
+  </div>
+</div>
+
+<div class="grid-row cols-3">
+  <div class="card">
+    <div class="card__header"><div class="card__title">ADM Reason Distribution</div></div>
+    <ul class="reason-list">
+      {% for r in reason_dist %}
+      <li>
+        <div class="reason-row__top"><span>{{ r.label }}</span><span class="pct">{{ r.pct }}%</span></div>
+        <div class="reason-bar-track"><div class="reason-bar-fill {{ r.color }}" style="width:{{ r.pct }}%"></div></div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card" style="grid-column: span 2;">
+    <div class="card__header"><div class="card__title">Per-agency breakdown</div></div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Agency</th><th>ADMs</th><th>Saved</th><th>Lost</th>
+          <th class="sortable">
+            <a href="{{ url_for('provider_audits', range=range, agency=filter_agency, sortHealth=('0' if sort_health else '1')) }}" style="color:inherit;">
+              Health {{ '▼' if sort_health else '▽' }}
+            </a>
+          </th>
+          <th>Trend</th><th style="text-align:right;">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <a class="agency-link" href="{{ url_for('provider_audits', range=range, agency=filter_agency, sortHealth=('1' if sort_health else '0'), drill=r.agency) }}">{{ r.agency }}</a>
+            <div class="cell-id">{{ r.pcc }}</div>
+          </td>
+          <td>{{ r.adms }}</td>
+          <td style="color: var(--emerald-500);">${{ "{:,}".format(r.saved) }}</td>
+          <td style="color: #fb7185;">${{ "{:,}".format(r.lost) }}</td>
+          <td><span class="health-badge {{ r.health }}">{{ r.health }}</span></td>
+          <td>{{ r.trend }}</td>
+          <td style="text-align:right;">
+            <button type="button" class="send-report-btn" onclick="alert('Compliance report sent to {{ r.agency }}')">Send Report</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if drill %}
+<div class="modal-overlay">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <a class="modal-header__back" href="{{ url_for('provider_audits', range=range, agency=filter_agency, sortHealth=('1' if sort_health else '0')) }}">&larr; Back</a>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title">Drill-down &middot; {{ drill }}</div>
+    </div>
+    <a class="modal-header__close" href="{{ url_for('provider_audits', range=range, agency=filter_agency, sortHealth=('1' if sort_health else '0')) }}">&times;</a>
+  </div>
+  <div class="modal-body">
+    <div style="font-size:12px; color: var(--slate-400); margin-bottom:12px;">Top triggering rules ({{ range.lower() }})</div>
+    <ul class="drilldown-list">
+      {% for rule in drilldown_rules %}
+      <li><span style="font-family: var(--font-mono); font-size:12px; color: {{ {'amber': 'var(--amber-400)', 'rose': '#fb7185', 'indigo': 'var(--indigo-300)'}[rule.tone] }};">{{ rule.code }}</span> {{ rule.text }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

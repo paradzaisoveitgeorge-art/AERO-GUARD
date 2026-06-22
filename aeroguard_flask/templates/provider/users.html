@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Helpdesk Users{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Helpdesk Users</h1>
+    <p class="page-header__subtitle">Add or remove operator accounts &middot; every sign-on is audited</p>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('add-user-modal').style.display='block'">+ Add User</button>
+</div>
+
+<div class="card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>MFA</th>
+        <th>Status</th>
+        <th>Last Login</th>
+        <th style="text-align:right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td style="font-weight:500;">{{ u.name }}</td>
+        <td style="color: var(--slate-300);">{{ u.email }}</td>
+        <td><span class="gds-chip" title="{{ role_hints[u.role] }}" style="cursor:help;">{{ u.role }}</span></td>
+        <td>
+          {% if u.mfa %}<span style="color: var(--emerald-500); font-size:12px;">&check; Enabled</span>
+          {% else %}<span style="color:#fb7185; font-size:12px;">&cross; Disabled</span>{% endif %}
+        </td>
+        <td>
+          {% if u.active %}<span style="color: var(--emerald-500); font-size:12px;">&#9679; Active</span>
+          {% else %}<span style="color: var(--slate-500); font-size:12px;">&#9679; Disabled</span>{% endif %}
+        </td>
+        <td style="font-size:12px; color: var(--slate-400);">{{ u.last_login }}</td>
+        <td class="row-actions">
+          <button type="button" class="icon-btn sky" onclick="alert('Audit trail for {{ u.name }} — 142 actions logged')">Audit</button>
+          <form method="post" action="{{ url_for('toggle_user_active', user_id=u.id) }}">
+            <button type="submit" class="icon-btn amber">{{ "Disable" if u.active else "Enable" }}</button>
+          </form>
+          <form method="post" action="{{ url_for('remove_user', user_id=u.id) }}" onsubmit="return confirm('Remove {{ u.name }}?')">
+            <button type="submit" class="icon-btn red">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="add-user-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <button class="modal-header__back" onclick="closeAddUserModal()">&larr; Back</button>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title">Add Helpdesk User</div>
+    </div>
+    <button class="modal-header__close" onclick="closeAddUserModal()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <form class="form-stack" method="post" action="{{ url_for('invite_user') }}" onsubmit="return confirmDomain(event)">
+      <div class="field">
+        <label>Full name *</label>
+        <input name="name" required />
+      </div>
+      <div class="field">
+        <label>Work email *</label>
+        <input name="email" id="invite-email" type="email" required />
+      </div>
+      <p class="field-hint">The user will receive an automated invitation to set up their password and MFA.</p>
+      <div class="field">
+        <label>Role *</label>
+        <select name="role">
+          <option value="L1">L1</option>
+          <option value="L2">L2</option>
+          <option value="ADMIN">ADMIN</option>
+        </select>
+      </div>
+      <div class="modules-box">
+        <div>&bull; <b>L1</b> &mdash; {{ role_hints.L1 }}</div>
+        <div>&bull; <b>L2</b> &mdash; {{ role_hints.L2 }}</div>
+        <div>&bull; <b>ADMIN</b> &mdash; {{ role_hints.ADMIN }}</div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; font-size:12px; color: var(--slate-400);">
+        <input type="checkbox" id="add-another" /> Invite another user after this one
+      </label>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeAddUserModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Send Invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function closeAddUserModal() {
+  document.getElementById("add-user-modal").style.display = "none";
+}
+
+function confirmDomain(e) {
+  const email = document.getElementById("invite-email").value;
+  if (!email.endsWith("@aero-guard.io")) {
+    if (!confirm("Email is not on @aero-guard.io domain. Continue?")) {
+      e.preventDefault();
+      return false;
+    }
+  }
+  // "Invite another" just keeps the modal-open intent visible; the real reset
+  // happens on the next page load since this is a server-rendered form.
+  return true;
+}
+</script>
+{% endblock %}

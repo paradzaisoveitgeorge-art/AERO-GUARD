@@ -1,0 +1,162 @@
+<div class="ag-panel" id="ag-panel" style="display:none;">
+  <div class="ag-panel__header">
+    <div class="ag-panel__brand">
+      <div class="ag-panel__logo">AG</div>
+      <div>
+        <div class="ag-panel__name">AERO-GUARD</div>
+        <div class="ag-panel__sub">Smart Button &middot; v0.4</div>
+      </div>
+    </div>
+    <button class="ag-panel__close" onclick="togglePanel()">&times;</button>
+  </div>
+
+  <div class="ag-tabs">
+    <button type="button" class="active" data-tab="violations" onclick="setTab('violations')">Alerts <span class="badge" id="tab-badge-prevented">11</span><span class="glow" id="tab-glow"></span></button>
+    <button type="button" data-tab="passport" onclick="setTab('passport')">Passport</button>
+    <button type="button" data-tab="vouchers" onclick="setTab('vouchers')">Vouchers <span class="badge">3</span></button>
+    <button type="button" data-tab="learn" onclick="setTab('learn')">Learn <span class="badge">3</span></button>
+    <button type="button" data-tab="help" onclick="setTab('help')">Help</button>
+  </div>
+
+  <div class="ag-panel__content">
+
+    <!-- Violations / Alerts tab -->
+    <div data-tabpanel="violations">
+      <div class="ag-stat-grid">
+        <div class="ag-stat"><div class="ag-stat__label">Saved</div><div class="ag-stat__value brand" id="stat-saved">$4282</div></div>
+        <div class="ag-stat"><div class="ag-stat__label">ADMs blocked</div><div class="ag-stat__value success" id="stat-prevented">11</div></div>
+        <div class="ag-stat"><div class="ag-stat__label">Score</div><div class="ag-stat__value" id="stat-score">96.4%</div></div>
+      </div>
+
+      <button type="button" class="ag-violation-card" onclick="openViolation()">
+        <span class="ag-violation-card__bang">!</span>
+        <div style="flex:1;">
+          <div class="ag-violation-card__title">Min Stay Rule Breach</div>
+          <div class="ag-violation-card__segment">Segment 03 &middot; LH 902 FRALON</div>
+        </div>
+        <span class="ag-violation-card__amount">$450</span>
+      </button>
+
+      <div class="ag-recent">
+        <div class="ag-recent__title">Recent activity</div>
+        <ul>
+          <li>&check; Auto-fix applied &middot; QR204 &middot; saved $320</li>
+          <li>&check; SSR mismatch resolved &middot; FN8123 &middot; saved $180</li>
+          <li>&#9888; Tax code mismatch &middot; LH901 &middot; manual review</li>
+        </ul>
+      </div>
+
+      <button type="button" class="ag-rescan-btn" onclick="triggerViolation()">Re-scan PNR</button>
+    </div>
+
+    <!-- Passport tab -->
+    <div data-tabpanel="passport" style="display:none;">
+      <div class="ag-passport-header">
+        <span class="label">AERO-GUARD Data-Fill</span>
+        <span class="pii">PII &middot; auto-wipe</span>
+      </div>
+
+      <div id="passport-idle" class="ag-dropzone" onclick="runOcr()" ondragover="event.preventDefault()" ondrop="onPassportDrop(event)">
+        <div class="icon">&#128247;</div>
+        <div class="title">Drop / paste / click passport image</div>
+        <div class="hint">MRZ &middot; ICAO 9303 &middot; JPG/PNG</div>
+        <button type="button" class="browse" onclick="event.stopPropagation(); document.getElementById('passport-file').click();">Browse file</button>
+        <input id="passport-file" type="file" accept="image/*" style="display:none;" onchange="onPassportFileChange(event)" />
+      </div>
+
+      <div id="passport-scanning" class="ag-scanning" style="display:none;">
+        <div class="ag-scanning__title">Reading MRZ&hellip;</div>
+        <div class="ag-scanning__track"><div class="ag-scanning__bar"></div></div>
+        <div class="ag-scanning__meta">OCR &middot; TESSERACT-WASM &middot; ZONE B</div>
+      </div>
+
+      <div id="passport-verify" style="display:none;">
+        <div class="ag-verify-table">
+          <div class="ag-verify-table__header">Verify before push</div>
+          <table>
+            <tbody>
+              <tr><td class="k">Surname</td><td class="v">DEMHE</td></tr>
+              <tr><td class="k">Given</td><td class="v">PATRICK JOHN</td></tr>
+              <tr><td class="k">Nationality</td><td class="v">ZWE</td></tr>
+              <tr><td class="k">DOB</td><td class="v">14 MAR 1988</td></tr>
+              <tr><td class="k">Sex</td><td class="v">M</td></tr>
+              <tr><td class="k">Passport #</td><td class="v">FN438201</td></tr>
+              <tr><td class="k">Expiry</td><td class="v">22 SEP 2029</td></tr>
+            </tbody>
+          </table>
+          <div class="ag-mrz">
+            <div>P&lt;ZWEDEMHE&lt;&lt;PATRICK&lt;JOHN&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
+            <div>FN4382014ZWE8803147M2909226&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;04</div>
+          </div>
+        </div>
+
+        <div class="ag-sanity-ok">&check; Sanity check passed &middot; valid &gt; 6 months</div>
+
+        <div id="passport-actions" class="ag-passport-actions">
+          <button type="button" class="apply" onclick="applyPassport()">Apply to PNR</button>
+          <button type="button" class="rescan" onclick="resetPassport()">Re-scan</button>
+        </div>
+        <div id="passport-applied" class="ag-applied" style="display:none;">&check; Pushed to PNR &middot; NM + DOCS SSR</div>
+      </div>
+    </div>
+
+    <!-- Vouchers tab -->
+    <div data-tabpanel="vouchers" style="display:none;">
+      {% for v in vouchers %}
+      <div class="ag-voucher-card">
+        <div class="ag-voucher-card__top">
+          <div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span class="ag-voucher-card__tier tier-{{ v.tier.lower() }}">{{ v.tier }}</span>
+              <span class="ag-voucher-card__id">{{ v.id }}</span>
+            </div>
+            <div class="ag-voucher-card__pax">{{ v.pax }}</div>
+            <div class="ag-voucher-card__meta">{{ v.airline }} &middot; exp {{ v.expires }} &middot; {{ v.policy_ref }}</div>
+          </div>
+          <div>
+            <div class="ag-voucher-card__amount">${{ v.amount }}</div>
+            <div class="ag-voucher-card__status status-{{ v.status.lower() }}">{{ v.status }}</div>
+          </div>
+        </div>
+        <div class="ag-voucher-card__actions">
+          <button type="button" class="attach" onclick="alert('Voucher {{ v.id }} attached to PNR H2ML1J')">Attach to PNR</button>
+          <button type="button" class="details" onclick="alert('{{ v.id }} — {{ v.pax }} — {{ v.policy_ref }}')">Details</button>
+        </div>
+      </div>
+      {% endfor %}
+      <button type="button" class="ag-issue-btn" onclick="alert('Opening voucher issuance…')">+ Issue new voucher</button>
+    </div>
+
+    <!-- Learn tab -->
+    <div data-tabpanel="learn" style="display:none;">
+      <div class="ag-recent__title" style="margin-bottom:8px;">AERO-GUARD Tutorials</div>
+      {% for t in tutorials %}
+      <div class="ag-tutorial-card">
+        <div class="ag-tutorial-card__video">&#9654;</div>
+        <div class="ag-tutorial-card__body">
+          <div class="ag-tutorial-card__top">
+            <div class="ag-tutorial-card__title">{{ t.title }}</div>
+            <span class="ag-tutorial-card__tag">{{ t.tag }}</span>
+          </div>
+          <p class="ag-tutorial-card__blurb">{{ t.blurb }}</p>
+          <div class="ag-tutorial-card__duration">{{ t.duration }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Help tab -->
+    <div data-tabpanel="help" style="display:none;">
+      <div class="ag-ask-box">
+        <div class="ag-ask-box__label">Ask AERO-GUARD</div>
+        <input placeholder="e.g. How do I reissue a partially flown ticket?" />
+      </div>
+      {% for q in ["FXX command syntax", "Min-stay rule examples", "ADM dispute template", "Tax code FOC vs Q"] %}
+      <button type="button" class="ag-faq-btn" onclick="alert('Opening: {{ q }}')">{{ q }}</button>
+      {% endfor %}
+    </div>
+
+  </div>
+
+  <div class="ag-panel__footer">Agent: J. STERLING &middot; Session HREOU &middot; GDS Travelport</div>
+</div>

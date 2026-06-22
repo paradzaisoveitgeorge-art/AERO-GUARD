@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Emulate into PCC{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Emulate into PCC</h1>
+    <p class="page-header__subtitle">Audited terminal access &middot; every keystroke logged</p>
+  </div>
+</div>
+
+<div class="grid-row cols-3" style="grid-template-columns: 1fr;" id="emulate-layout">
+  <div class="card">
+    <div class="card__header"><div class="card__title">Session</div></div>
+    <div class="form-stack">
+      <div class="field">
+        <label>Target PCC</label>
+        <input id="pcc-input" value="7XQ9" style="font-family: var(--font-mono); text-transform:uppercase;" />
+      </div>
+      <div class="field">
+        <label>Audit reason (required)</label>
+        <textarea id="reason-input" rows="3" placeholder="e.g. Assisting Skylink with PNR X7K2QP rebook"></textarea>
+      </div>
+      <button id="connect-btn" class="btn" style="width:100%; padding:8px; background: var(--emerald-600); color:white;" onclick="connectSession()">Connect</button>
+      <div id="connect-error" style="display:none; font-size:11px; color:#fb7185;">Audit reason required before emulation</div>
+      <div class="emu-footnote">&#128274; Every emulation logs: operator, PCC, reason, commands, timestamps. Auditing the auditors.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__header"><div class="card__title" id="terminal-title">Terminal &middot; disconnected</div></div>
+    <div class="emu-terminal" id="emu-output">
+      <div class="empty">No active session.</div>
+    </div>
+    <div class="emu-prompt-row">
+      <span class="dollar">$</span>
+      <input id="cmd-input" placeholder="Connect to begin" disabled onkeydown="if(event.key==='Enter') runCommand()" />
+      <button id="send-btn" class="btn btn-primary" disabled onclick="runCommand()">Send</button>
+    </div>
+  </div>
+</div>
+
+<style>
+@media (min-width: 1024px) {
+  #emulate-layout { grid-template-columns: 1fr 2fr; gap: 24px; }
+}
+</style>
+
+<script>
+let connected = false;
+
+function connectSession() {
+  const reason = document.getElementById("reason-input").value.trim();
+  const errorEl = document.getElementById("connect-error");
+  if (!reason) { errorEl.style.display = "block"; return; }
+  errorEl.style.display = "none";
+  const pcc = document.getElementById("pcc-input").value.toUpperCase();
+  connected = true;
+
+  document.getElementById("pcc-input").disabled = true;
+  document.getElementById("reason-input").disabled = true;
+  document.getElementById("cmd-input").disabled = false;
+  document.getElementById("cmd-input").placeholder = "*R, FXX, I…";
+  document.getElementById("send-btn").disabled = false;
+  document.getElementById("terminal-title").textContent = `Terminal · ${pcc}`;
+
+  const connectBtn = document.getElementById("connect-btn");
+  connectBtn.textContent = "Disconnect";
+  connectBtn.style.background = "var(--rose-600)";
+  connectBtn.onclick = disconnectSession;
+
+  const out = document.getElementById("emu-output");
+  out.innerHTML = "";
+  addLine(out, `>> EMULATE ${pcc} — operator: SMOYO — reason: ${reason}`, "in");
+  addLine(out, "<< Connected to 1G host AP-2", "out");
+  addLine(out, "<< Session audited (TKT-AUD-9921)", "out");
+}
+
+function disconnectSession() {
+  connected = false;
+  document.getElementById("pcc-input").disabled = false;
+  document.getElementById("reason-input").disabled = false;
+  document.getElementById("cmd-input").disabled = true;
+  document.getElementById("cmd-input").placeholder = "Connect to begin";
+  document.getElementById("send-btn").disabled = true;
+  document.getElementById("terminal-title").textContent = "Terminal · disconnected";
+
+  const connectBtn = document.getElementById("connect-btn");
+  connectBtn.textContent = "Connect";
+  connectBtn.style.background = "var(--emerald-600)";
+  connectBtn.onclick = connectSession;
+
+  document.getElementById("emu-output").innerHTML = '<div class="empty">No active session.</div>';
+}
+
+function addLine(container, text, cls) {
+  const div = document.createElement("div");
+  div.className = "emu-line " + cls;
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function runCommand() {
+  if (!connected) return;
+  const input = document.getElementById("cmd-input");
+  const cmd = input.value.trim();
+  if (!cmd) return;
+  const out = document.getElementById("emu-output");
+  let result = "OK";
+  if (cmd.startsWith("*R")) result = "RLOC X7K2QP / 2 PAX / QR084 23JUN DOH HRE";
+  else if (cmd.startsWith("FXX")) result = "FARE QUOTE: USD 842.00 / TAX 138.00 / TOTAL 980.00";
+  addLine(out, "> " + cmd, "in");
+  addLine(out, "  " + result, "cmd");
+  input.value = "";
+}
+</script>
+{% endblock %}

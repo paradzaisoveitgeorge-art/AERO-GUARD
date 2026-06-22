@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Agency Provisioning{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Agency Provisioning</h1>
+    <p class="page-header__subtitle">Add, configure, suspend or remove agencies on AERO-GUARD</p>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('provision-modal').style.display='block'">+ Provision Agency</button>
+</div>
+
+<form method="get" id="filter-form" class="filter-bar">
+  <label class="filter-select">
+    <span>GDS:</span>
+    <select name="gds" onchange="document.getElementById('filter-form').submit()">
+      {% for o in ["ALL", "1G", "1A", "1S"] %}
+      <option value="{{ o }}" {{ "selected" if o == filter_gds else "" }}>{{ o }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="filter-select">
+    <span>Country:</span>
+    <select name="country" onchange="document.getElementById('filter-form').submit()">
+      <option value="ALL" {{ "selected" if filter_country == "ALL" else "" }}>ALL</option>
+      {% for o in countries %}
+      <option value="{{ o }}" {{ "selected" if o == filter_country else "" }}>{{ o }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="filter-select">
+    <span>Policy:</span>
+    <select name="policy" onchange="document.getElementById('filter-form').submit()">
+      {% for o in ["ALL", "BASIC", "STANDARD", "ENTERPRISE"] %}
+      <option value="{{ o }}" {{ "selected" if o == filter_policy else "" }}>{{ o }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <input type="hidden" name="sort" value="{{ sort_by }}" />
+  <input type="hidden" name="dir" value="{{ sort_dir }}" />
+
+  <div class="bulk-actions" id="bulk-actions" style="display:none;">
+    <span class="count" id="bulk-count">0 selected</span>
+    <button type="button" class="btn btn-amber-soft" onclick="bulkAction('SUSPEND')">Suspend</button>
+    <button type="button" class="btn btn-emerald-soft" onclick="bulkAction('REACTIVATE')">Reactivate</button>
+    <button type="button" class="btn btn-rose-soft" onclick="bulkAction('DELETE')">Delete</button>
+  </div>
+</form>
+
+<form id="bulk-form" method="post" action="{{ url_for('bulk_agency_action') }}" style="display:none;">
+  <input type="hidden" name="action" id="bulk-form-action" />
+</form>
+
+<div class="card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width:32px;"><input type="checkbox" id="select-all" onchange="toggleSelectAll(this)" /></th>
+        <th class="sortable"><a href="{{ sort_url('name') }}" style="color:inherit;">Agency <span class="sort-arrow {{ 'active' if sort_by == 'name' else '' }}">{{ '↑' if sort_by == 'name' and sort_dir == 'asc' else ('↓' if sort_by == 'name' else '↕') }}</span></a></th>
+        <th>PCC</th>
+        <th>GDS</th>
+        <th>Country</th>
+        <th class="sortable"><a href="{{ sort_url('seats') }}" style="color:inherit;">Seats <span class="sort-arrow {{ 'active' if sort_by == 'seats' else '' }}">{{ '↑' if sort_by == 'seats' and sort_dir == 'asc' else ('↓' if sort_by == 'seats' else '↕') }}</span></a></th>
+        <th>Status</th>
+        <th class="sortable"><a href="{{ sort_url('adms') }}" style="color:inherit;">ADMs <span class="sort-arrow {{ 'active' if sort_by == 'adms' else '' }}">{{ '↑' if sort_by == 'adms' and sort_dir == 'asc' else ('↓' if sort_by == 'adms' else '↕') }}</span></a></th>
+        <th class="sortable"><a href="{{ sort_url('lastActive') }}" style="color:inherit;">Last Active <span class="sort-arrow {{ 'active' if sort_by == 'lastActive' else '' }}">{{ '↑' if sort_by == 'lastActive' and sort_dir == 'asc' else ('↓' if sort_by == 'lastActive' else '↕') }}</span></a></th>
+        <th style="text-align:right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in agencies %}
+      {% set pct = (a.used_seats / a.seats * 100) if a.seats else 0 %}
+      <tr>
+        <td><input type="checkbox" class="row-check" value="{{ a.id }}" onchange="updateBulkBar()" /></td>
+        <td>
+          <div style="font-weight:500;">{{ a.name }}</div>
+          <div class="cell-id">{{ a.id }} &middot; {{ a.policy_level }}</div>
+        </td>
+        <td style="font-family: var(--font-mono);">{{ a.pcc }}</td>
+        <td><span class="gds-chip">{{ a.gds }}</span></td>
+        <td>{{ a.country }}</td>
+        <td>
+          <div style="font-size:12px;">{{ a.used_seats }}/{{ a.seats }}</div>
+          <div class="seat-bar-track"><div class="seat-bar-fill {{ 'crit' if pct >= 95 else ('warn' if pct >= 80 else 'ok') }}" style="width:{{ pct }}%"></div></div>
+        </td>
+        <td><span class="status-badge {{ a.status }}">{{ a.status }}</span></td>
+        <td>{{ a.month_adms }}</td>
+        <td style="font-size:12px; color: var(--slate-400);">{{ a.last_active }}</td>
+        <td class="row-actions">
+          <button type="button" class="icon-btn sky" title="Audit" onclick="alert('Opening audit for {{ a.name }}')">&#128202;</button>
+          <button type="button" class="icon-btn indigo" title="Resend welcome" onclick="alert('Welcome email resent to {{ a.admin_email }}')">&#9993;</button>
+          <form method="post" action="{{ url_for('toggle_suspend_agency', agency_id=a.id) }}">
+            <button type="submit" class="icon-btn amber">{{ "Reactivate" if a.status == "SUSPENDED" else "Suspend" }}</button>
+          </form>
+          <form method="post" action="{{ url_for('delete_agency', agency_id=a.id) }}" onsubmit="return confirm('Remove {{ a.name }}?')">
+            <button type="submit" class="icon-btn red">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Provision modal: full-screen takeover, matches the Travelport-style modal in the source -->
+<div id="provision-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <button class="modal-header__back" onclick="closeProvisionModal()">&larr; Back</button>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title" id="provision-modal-title">Provision New Agency</div>
+    </div>
+    <button class="modal-header__close" onclick="closeProvisionModal()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <form id="provision-form" class="form-stack" method="post" action="{{ url_for('provision_agency') }}">
+      <div class="field">
+        <label>Agency name *</label>
+        <input name="name" required />
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>PCC *</label>
+          <input name="pcc" required />
+        </div>
+        <div class="field">
+          <label>Country *</label>
+          <select name="country">
+            {% for c in countries %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>GDS *</label>
+          <select name="gds" id="gds-select" onchange="updateModules()">
+            <option value="1G">1G</option>
+            <option value="1A">1A</option>
+            <option value="1S">1S</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Seat count *</label>
+          <input name="seats" type="number" required />
+        </div>
+      </div>
+      <div class="field">
+        <label>Agency administrator email *</label>
+        <input name="admin_email" type="email" required />
+      </div>
+      <p class="field-hint">Admin receives credentials and MFA setup link automatically.</p>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Policy template</label>
+          <select name="policy">
+            {% for p in policy_templates %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Access mode</label>
+          <select name="mode">
+            <option value="TRIAL">TRIAL</option>
+            <option value="FULL">FULL</option>
+          </select>
+        </div>
+      </div>
+      <div class="modules-box">
+        <div class="modules-box__title">Policy modules (<span id="gds-label">1G</span>)</div>
+        <div id="modules-list"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeProvisionModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Confirm &amp; Provision</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const BASE_MODULES = ["NCP Validator", "DOCS SSR", "ADM Audit Trail", "PNR Watcher", "Voucher Engine"];
+const GDS_EXTRA = { "1A": "Amadeus Cryptic Bridge", "1S": "Sabre Red Connector" };
+
+function updateModules() {
+  const gds = document.getElementById("gds-select").value;
+  document.getElementById("gds-label").textContent = gds;
+  const mods = [...BASE_MODULES];
+  if (GDS_EXTRA[gds]) mods.push(GDS_EXTRA[gds]);
+  document.getElementById("modules-list").innerHTML = mods.map(
+    (m) => `<label><input type="checkbox" checked disabled /> ${m}</label>`
+  ).join("");
+}
+updateModules();
+
+function closeProvisionModal() {
+  document.getElementById("provision-modal").style.display = "none";
+}
+
+function toggleSelectAll(box) {
+  document.querySelectorAll(".row-check").forEach((c) => { c.checked = box.checked; });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll(".row-check:checked");
+  const bar = document.getElementById("bulk-actions");
+  document.getElementById("bulk-count").textContent = `${checked.length} selected`;
+  bar.style.display = checked.length > 0 ? "flex" : "none";
+}
+
+function bulkAction(action) {
+  const checked = [...document.querySelectorAll(".row-check:checked")].map((c) => c.value);
+  if (checked.length === 0) return;
+  if (action === "DELETE" && !confirm(`Delete ${checked.length} agencies?`)) return;
+  const form = document.getElementById("bulk-form");
+  document.getElementById("bulk-form-action").value = action;
+  checked.forEach((id) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "ids";
+    input.value = id;
+    form.appendChild(input);
+  });
+  form.submit();
+}
+</script>
+{% endblock %}

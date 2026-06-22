@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; My Learning{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">My Learning</h1>
+    <p class="page-header__subtitle">Helpdesk certification &amp; compliance training</p>
+  </div>
+</div>
+
+<div class="learning-grid">
+  {% for m in modules %}
+  <div class="card">
+    <div class="learning-card__top">
+      <div>
+        <div class="learning-card__name">{{ m.name }}</div>
+        <div class="learning-card__badge">{{ m.badge }}</div>
+      </div>
+      <span class="learning-card__pct">{{ m.progress }}%</span>
+    </div>
+    <div class="progress-track" style="margin-top:12px;"><div class="progress-fill" style="width:{{ m.progress }}%"></div></div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

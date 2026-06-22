@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(winget install --id GitHub.cli -e --silent --accept-package-agreements --accept-source-agreements)",
+      "PowerShell($env:Path += \";C:\\\\Program Files\\\\GitHub CLI\"; gh auth status)",
+      "Bash(extract-text \"AERO GUARD DOCUMENTATION.docx\")",
+      "Bash(pandoc \"AERO GUARD DOCUMENTATION.docx\" -t markdown)",
+      "Bash(find \"/c/Users/CLYK/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin\" -iname \"extract-text*\" 2>/dev/null)",
+      "Bash(python -c ' *)",
+      "Bash(pip install *)",
+      "Bash(mkdir -p \"/c/Users/CLYK/OneDrive/Desktop/AERO GUARD/.claude\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(cd \"/c/Users/CLYK/OneDrive/Desktop/AERO GUARD\" && ls -la)",
+      "Bash(python -m streamlit run aero_guard/frontend/app.py --server.headless true)",
+      "Bash(sleep 6; cat \"/c/Users/CLYK/AppData/Local/Temp/claude/C--Users-CLYK-OneDrive-Desktop-AERO-GUARD/693abd97-8d53-4189-a6a0-5700f2912825/tasks/b6ft9je7h.output\")",
+      "Bash(xargs grep -l \"login\\\\|auth\")",
+      "Bash(powershell -Command \"Get-Process python -ErrorAction SilentlyContinue | Select-Object Id,StartTime\")",
+      "Bash(npm --version)",
+      "Bash(cd \"/c/Users/CLYK/OneDrive/Desktop/AERO GUARD\" && mkdir -p aero-guard/client/src/components/Provider aero-guard/client/src/components/Consultant aero-guard/client/src/components/Shared aero-guard/client/src/data aero-guard/client/public aero-guard/server/routes aero-guard/server/data && echo ok)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:4000/api/health)",
+      "Bash(curl -s http://localhost:4000/api/agencies)",
+      "Bash(unzip -l \"AERO-GAURD CODES.zip\")",
+      "Bash(cd \"/c/Users/CLYK/OneDrive/Desktop/AERO GUARD\" && mkdir -p aeroguard_flask/templates aeroguard_flask/static/css aeroguard_flask/static/js && echo ok)",
+      "Bash(pip show *)",
+      "Bash(python app.py)"
+    ]
+  }
+}

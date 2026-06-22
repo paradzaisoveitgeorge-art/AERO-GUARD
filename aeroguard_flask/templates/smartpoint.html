@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AERO-GUARD &mdash; Smartpoint Smart Button Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/smartpoint.css') }}" />
+</head>
+<body style="margin:0;">
+<div class="sp-root">
+
+  <div class="sp-titlebar">
+    <span class="sp-titlebar__title">Travelport Smartpoint &mdash; [Terminal Window 1]</span>
+    <div class="sp-titlebar__controls">
+      <span>_</span><span>&#9633;</span><span class="close">&times;</span>
+    </div>
+  </div>
+
+  <div class="sp-menubar">
+    {% for m in ["File", "Edit", "View", "PNR", "Fares", "Tools", "Window", "Help"] %}
+    <span>{{ m }}</span>
+    {% endfor %}
+    <a href="{{ url_for('provider_dashboard') }}" style="margin-left:auto; color:#4f46e5; font-weight:600; text-decoration:none;">Provider Console &rarr;</a>
+  </div>
+
+  <div class="sp-toolbar">
+    {% for i in ["☰", "✎", "⤓", "⤒", "↺", "↻"] %}
+    <button type="button">{{ i }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="sp-body">
+    <aside class="sp-rail">
+      {% for icon in ["🔍", "🏷", "🔧", "💬", "M", "♺", "?", "⚙"] %}
+      <button type="button">{{ icon }}</button>
+      {% endfor %}
+      <div class="sp-rail__sep"></div>
+      <button id="ag-toggle-btn" class="sp-ag-btn" title="AERO-GUARD" onclick="togglePanel()">
+        AG
+        <span class="sp-ag-btn__ping" id="ag-ping"><span>!</span></span>
+      </button>
+      <div class="sp-rail__bottom">SB<br />FS</div>
+    </aside>
+
+    <section class="sp-pnr-pane">
+      <div class="sp-pane-header">
+        <span class="num">0</span>
+        <span class="title">PNR&ndash;H2ML1J/DEMHE</span>
+        <span class="icons"><span>&#9998;</span><span>&#10514;</span><span>&#8635;</span><span>Aa</span><span>&hellip;</span></span>
+      </div>
+      <div class="sp-pnr-body">
+        <p class="lead">H2ML1J/SP HREOU 68I4SP AG 68261126 04JUN</p>
+        <p class="pax">&nbsp;1.1DEMHE/PATRICK</p>
+        <p>&nbsp;2 LH 901 Y 15OCT LONFRA HK1 0730 1015 *PA* E</p>
+        <p>&nbsp;3 LH 902 Y 22OCT FRALON HK1 1820 1910 *PA* E</p>
+        <p>&nbsp;FE PAX ONLY/NON-REF/CHG 150GBP</p>
+        <p>&nbsp;FP CC VI 4111111111111111/1225</p>
+        <p>&nbsp;FV LH</p>
+        <p>&nbsp;</p>
+        <p class="vendor">&nbsp;** VENDOR LOCATOR DATA EXISTS **&nbsp;&nbsp;&gt;*VL</p>
+        <p class="vendor">&nbsp;** VENDOR REMARKS DATA EXISTS **&nbsp;&nbsp;&gt;*VR</p>
+        <p class="vendor">&nbsp;** SERVICE INFORMATION EXISTS **&nbsp;&nbsp;&gt;*SI</p>
+        <div class="sp-pnr-actions">
+          {% for b in ["*ALL", "*P", "*VL", "*VR", "*SI"] %}
+          <button type="button">{{ b }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="sp-cmd-pane">
+      <div class="sp-pane-header">
+        <span class="title">1 &mdash; Command Window</span>
+        <span style="margin-left:auto;">&hellip;</span>
+      </div>
+      <div class="sp-cmd-body" id="cmd-body">
+        <p class="cmd-line indigo">&gt; AERO-GUARD :: SESSION ATTACHED &middot; PNR H2ML1J</p>
+        <p class="cmd-line indigo">&gt; MONITORING ACTIVE &middot; LISTENING FOR FARE/RULE EVENTS</p>
+        <p class="cmd-line def">&gt;<span class="cmd-cursor">&#9608;</span></p>
+      </div>
+
+      {% include "partials/ag_panel.html" %}
+      {% include "partials/violation_modal.html" %}
+    </section>
+  </div>
+
+  <div class="sp-statusbar">
+    <div class="sp-statusbar__group">
+      <span>Connection: <span class="live">&#9679;</span> Live</span>
+      <span>PCC: HREOU</span>
+      <span>Agent: J. STERLING</span>
+    </div>
+    <div class="sp-statusbar__group">
+      <span>AERO-GUARD: <span class="active">ACTIVE</span></span>
+      <span>Compliance <span id="sb-compliance">96.4</span>%</span>
+      <span>Saved $<span id="sb-savings">4281.50</span></span>
+      <span id="sb-resolved"></span>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/smartpoint.js') }}"></script>
+</body>
+</html>

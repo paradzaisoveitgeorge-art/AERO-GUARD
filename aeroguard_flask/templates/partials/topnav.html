@@ -1,0 +1,53 @@
+<nav class="topnav">
+  <a href="{{ url_for('provider_dashboard') }}" class="topnav__brand">
+    <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+         alt="AERO-GUARD" class="topnav__logo-img" />
+    <div>
+      <div class="topnav__title">AERO-GUARD</div>
+      <div class="topnav__subtitle">Compliance in Motion, Profit in Motive</div>
+    </div>
+  </a>
+
+  <ul class="topnav__links">
+    <li>
+      <a href="{{ url_for('provider_dashboard') }}"
+         class="topnav__link {{ 'active' if active_nav == 'DASHBOARD' else '' }}">Home</a>
+    </li>
+
+    <li class="topnav__dropdown">
+      <button type="button" class="topnav__link topnav__trigger">
+        Products <span class="topnav__caret">▾</span>
+      </button>
+      <ul class="topnav__menu">
+        <li><a href="{{ url_for('provider_agencies') }}"
+               class="{{ 'active' if active_nav == 'AGENCIES' else '' }}">Agency Provision ITA</a></li>
+        <li><a href="{{ url_for('provider_users') }}"
+               class="{{ 'active' if active_nav == 'USERS' else '' }}">Manage Users</a></li>
+        <li><a href="{{ url_for('provider_vouchers') }}"
+               class="{{ 'active' if active_nav == 'VOUCHERS' else '' }}">Voucher Management</a></li>
+        <li><a href="{{ url_for('provider_audits') }}"
+               class="{{ 'active' if active_nav == 'AUDITS' else '' }}">AA Audit</a></li>
+      </ul>
+    </li>
+
+    <li class="topnav__dropdown">
+      <button type="button" class="topnav__link topnav__trigger">
+        Help &amp; Resources <span class="topnav__caret">▾</span>
+      </button>
+      <ul class="topnav__menu">
+        <li><a href="{{ url_for('provider_respond') }}"
+               class="{{ 'active' if active_nav == 'RESPOND' else '' }}">Aero Guard Support</a></li>
+        <li><a href="{{ url_for('provider_escalations') }}"
+               class="{{ 'active' if active_nav == 'ESCALATIONS' else '' }}">Service Alert</a></li>
+        <li><a href="{{ url_for('provider_policies') }}"
+               class="{{ 'active' if active_nav == 'POLICIES' else '' }}">Maintenance Advisory</a></li>
+        <li><a href="{{ url_for('provider_escalations') }}?new=1"
+               class="">Escalate Case</a></li>
+        <li><a href="{{ url_for('provider_emulate') }}"
+               class="{{ 'active' if active_nav == 'EMULATE' else '' }}">Assist</a></li>
+      </ul>
+    </li>
+  </ul>
+
+  <a href="{{ url_for('smartpoint_demo') }}" class="topnav__consultant">&larr; Consultant view</a>
+</nav>

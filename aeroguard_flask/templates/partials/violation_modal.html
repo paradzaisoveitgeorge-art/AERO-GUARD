@@ -1,0 +1,38 @@
+<div id="violation-overlay" class="sp-violation-overlay" style="display:none;" role="alertdialog">
+  <div class="sp-violation-modal">
+    <div class="sp-violation-modal__header">
+      <div class="sp-violation-modal__brand">
+        <span class="sp-violation-modal__logo">AG</span>
+        <span class="sp-violation-modal__title">AERO-GUARD ALERT</span>
+      </div>
+      <span class="sp-violation-modal__severity">CRITICAL</span>
+    </div>
+    <div class="sp-violation-modal__body">
+      <div>
+        <h3>Min Stay Rule Breach</h3>
+        <p class="seg">Segment 03 &middot; LH 902 FRALON</p>
+      </div>
+      <p class="explain">Fare basis Y-FLEX/SU requires a Sunday stayover. Current itinerary returns Friday 22OCT &mdash; issuance will trigger an ADM from LH.</p>
+      <div class="sp-violation-fixbox">
+        <div class="sp-violation-fixbox__row">
+          <div>
+            <div class="label">Potential ADM</div>
+            <div class="penalty">$450.00</div>
+          </div>
+          <div>
+            <div class="label" style="text-align:right;">Suggested fix</div>
+            <div class="fix">Apply Y-PROMO</div>
+          </div>
+        </div>
+        <div class="sp-violation-fixbox__cmd">FXX/S2,3/R,Y-PROMO</div>
+      </div>
+      <div class="sp-violation-actions">
+        <button type="button" class="apply-fix" onclick="applyFix()">Apply One-Click Fix</button>
+        <div class="row">
+          <button type="button" onclick="ignoreViolation()">Ignore</button>
+          <button type="button" onclick="alert('Fare basis Y-FLEX/SU requires a Sunday stayover. Current itinerary returns Friday 22OCT — issuance will trigger an ADM from LH.')">Why?</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

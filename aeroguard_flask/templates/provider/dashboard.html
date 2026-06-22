@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Helpdesk Console{% endblock %}
+{% block content %}
+
+<div class="hero">
+  <div class="hero__body">
+    <div class="hero__top">
+      <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+           alt="AERO-GUARD" class="hero__logo-img" />
+      <div>
+        <h1 class="hero__title">Welcome to AERO-GUARD, Soviet</h1>
+        <p class="hero__subtitle">Active Revenue Sentinel &middot; MFA verified &middot; session 14:02</p>
+      </div>
+    </div>
+    <p class="hero__tag">Compliance in Motion, Profit in Motive</p>
+    <div class="stat-grid">
+      <a class="stat-card tone-emerald" href="{{ url_for('provider_agencies') }}">
+        <div class="stat-card__label">Active Agencies</div>
+        <div class="stat-card__value">45</div>
+        <div class="stat-card__sub">&uarr; 3 this week</div>
+      </a>
+      <a class="stat-card tone-indigo" href="{{ url_for('provider_audits') }}">
+        <div class="stat-card__label">ADMs Prevented Today</div>
+        <div class="stat-card__value">{{ adms_prevented }}</div>
+        <div class="stat-card__sub">${{ "{:,}".format(dollar_saved) }} saved</div>
+      </a>
+      <a class="stat-card tone-amber" href="{{ url_for('provider_escalations') }}">
+        <div class="stat-card__label">Pending Escalations</div>
+        <div class="stat-card__value">3</div>
+        <div class="stat-card__sub">1 high priority</div>
+      </a>
+      <a class="stat-card tone-sky" href="{{ url_for('provider_policies') }}">
+        <div class="stat-card__label">System Uptime (30d)</div>
+        <div class="stat-card__value">99.97%</div>
+        <div class="stat-card__sub">No incidents 7d</div>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="grid-row cols-3">
+  <div class="card">
+    <div class="card__header">
+      <div class="card__title">Service Alerts</div>
+      <div class="card__subtitle">Airlines &middot; GDS &middot; System</div>
+    </div>
+    <ul class="alert-list">
+      {% for a in alerts %}
+      <li>
+        <span class="severity-dot {{ a.severity }}"></span>
+        <div style="flex:1; min-width:0;">
+          <div class="alert-meta">
+            <span class="src">{{ a.source }}</span>
+            <span>&middot;</span>
+            <span>{{ a.time }}</span>
+            {% if a.ongoing %}<span class="pill ongoing">ONGOING</span>{% endif %}
+            <span class="pill impact">CLIENT IMPACT: {{ a.impacted_agencies }} agencies</span>
+          </div>
+          <div class="alert-title">{{ a.title }}</div>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card__header">
+      <div class="card__title">Pending Issues</div>
+      <div class="card__subtitle">Awaiting helpdesk action</div>
+    </div>
+    <ul class="issue-list">
+      {% for p in pending_issues %}
+      <li class="issue-item">
+        <div class="issue-item__top">
+          <span class="issue-item__id">{{ p.id }}</span>
+          <span class="priority-badge {{ p.priority }}">{{ p.priority }}</span>
+        </div>
+        <div class="issue-item__summary">{{ p.summary }}</div>
+        <div class="issue-item__meta">{{ p.agency }} &middot; {{ p.type }} &middot; {{ p.age }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card__header"><div class="card__title">Quick Actions</div></div>
+  <div class="quick-actions">
+    <button class="quick-action" onclick="quickAudit()">
+      <span class="quick-action__icon">&#9889;</span><span>Quick Audit (PNR)</span>
+    </button>
+    <a class="quick-action" href="{{ url_for('provider_agencies') }}">
+      <span class="quick-action__icon">&#127970;</span><span>Provision Agency</span>
+    </a>
+    <a class="quick-action" href="{{ url_for('provider_emulate') }}">
+      <span class="quick-action__icon">&#8989;</span><span>Emulate PCC</span>
+    </a>
+    <a class="quick-action" href="{{ url_for('provider_vouchers') }}">
+      <span class="quick-action__icon">&#127913;</span><span>Issue Voucher</span>
+    </a>
+    <a class="quick-action" href="{{ url_for('provider_respond') }}">
+      <span class="quick-action__icon">&#128172;</span><span>Respond to Client</span>
+    </a>
+  </div>
+</div>
+
+<div class="profile-row">
+  <div class="card">
+    <div class="card__header"><div class="card__title">My Profile</div></div>
+    <div class="profile-card">
+      <div class="profile-avatar">SM</div>
+      <div>
+        <div class="profile-name">Soviet Moyo</div>
+        <div class="profile-role">Admin &middot; MFA &check; &middot; L2 certified</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card__header"><div class="card__title">My Learning</div></div>
+    <div class="card__subtitle">Next module</div>
+    <div style="font-size:14px; font-weight:500; margin-top:4px;">NDC Order Management &mdash; 60% complete</div>
+    <div class="progress-track"><div class="progress-fill" style="width:60%"></div></div>
+    <a class="link-btn" href="{{ url_for('provider_learning') }}">Continue learning &rarr;</a>
+  </div>
+  <div class="card">
+    <div class="card__header"><div class="card__title">Socials &amp; Team</div></div>
+    <div class="social-row">
+      <span class="social-icon" title="LinkedIn">in</span>
+      <span class="social-icon" title="Slack">#</span>
+      <span class="social-icon" title="Email">&#9993;</span>
+      <span class="social-icon" title="X">&#120143;</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function quickAudit() {
+  const pnr = window.prompt("Enter PNR for quick compliance check");
+  if (pnr) alert(`Quick audit ${pnr.toUpperCase()} — compliant ✓`);
+}
+</script>
+{% endblock %}

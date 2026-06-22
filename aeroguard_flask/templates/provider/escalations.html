@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Escalations{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Escalations</h1>
+    <p class="page-header__subtitle">Route cases to L2, Jometech Africa or vendor support &middot; every action is audited</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('provider_escalations', new=1) }}">+ New Escalation</a>
+</div>
+
+<div class="card">
+  <ul class="esc-list">
+    {% for e in escalations %}
+    <li class="esc-item">
+      <div style="flex:1;">
+        <div class="esc-meta">
+          <span style="font-family: var(--font-mono);">{{ e.id }}</span><span>&middot;</span>
+          <span>{{ e.agency }}</span><span>&middot;</span>
+          <span>PNR {{ e.pnr }}</span><span>&middot;</span>
+          <span>{{ e.opened }}</span>
+          <span class="chip" style="background: rgba(99,102,241,0.15); color: var(--indigo-300);">SLA: {{ e.sla }}</span>
+        </div>
+        <div class="esc-subject">{{ e.subject }}</div>
+        <div class="esc-tags">
+          <span class="priority-badge {{ e.priority }}">{{ e.priority }}</span>
+          <span class="chip">Current: {{ e.level }}</span>
+          <span class="status-badge {{ e.status }}">{{ e.status }}</span>
+        </div>
+      </div>
+      <div class="esc-actions">
+        <a class="btn to-l2" href="{{ url_for('provider_escalations', escalate=e.id, to='L2') }}">&rarr; L2 Jometech</a>
+        <a class="btn to-vendor" href="{{ url_for('provider_escalations', escalate=e.id, to='VENDOR') }}">&rarr; GDS Vendor</a>
+        <form method="post" action="{{ url_for('resolve_escalation', esc_id=e.id) }}">
+          <button type="submit" class="resolve">&check; Resolved</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% if escalate_id %}
+{% set esc = escalations | selectattr("id", "equalto", escalate_id) | first %}
+<div class="modal-overlay">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <a class="modal-header__back" href="{{ url_for('provider_escalations') }}">&larr; Back</a>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title">Escalate {{ escalate_id }} &rarr; {{ "L2 Jometech" if escalate_to == "L2" else "GDS Vendor" }}</div>
+    </div>
+    <a class="modal-header__close" href="{{ url_for('provider_escalations') }}">&times;</a>
+  </div>
+  <div class="modal-body">
+    <form class="form-stack" method="post" action="{{ url_for('escalate_escalation', esc_id=escalate_id) }}">
+      <input type="hidden" name="to" value="{{ escalate_to }}" />
+      <div class="escalate-context">
+        Confirm escalation of <b>{{ escalate_id }}</b> {% if esc %}({{ esc.agency }}){% endif %} to <b>{{ escalate_to }}</b>. This will be logged in the audit trail.
+      </div>
+      <div class="field">
+        <label>Reason for escalation *</label>
+        <textarea name="reason" rows="3" required placeholder="Provide context so the receiving team can act immediately…"></textarea>
+      </div>
+      <div class="field">
+        <label>CC helpdesk / agency (comma-separated emails)</label>
+        <input name="cc" />
+      </div>
+      <div class="field">
+        <label>Attach screenshot / evidence</label>
+        <input type="file" accept="image/*" />
+      </div>
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="{{ url_for('provider_escalations') }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">Confirm Escalation</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if show_new %}
+<div class="modal-overlay">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <a class="modal-header__back" href="{{ url_for('provider_escalations') }}">&larr; Back</a>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title">New Escalation</div>
+    </div>
+    <a class="modal-header__close" href="{{ url_for('provider_escalations') }}">&times;</a>
+  </div>
+  <div class="modal-body">
+    <form class="form-stack" method="post" action="{{ url_for('new_escalation') }}">
+      <div class="field">
+        <label>Agency affected</label>
+        <select name="agency">
+          <option value="All agencies (override)">All agencies (override)</option>
+          {% for name in agency_names %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>PNR affected</label>
+        <input name="pnr" />
+      </div>
+      <div class="field">
+        <label>Subject *</label>
+        <input name="subject" required />
+      </div>
+      <div class="field">
+        <label>Priority</label>
+        <select name="priority">
+          <option value="LOW">LOW</option>
+          <option value="MED" selected>MED</option>
+          <option value="HIGH">HIGH</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Attach image</label>
+        <input type="file" accept="image/*" />
+      </div>
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="{{ url_for('provider_escalations') }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
