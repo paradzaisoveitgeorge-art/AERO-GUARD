@@ -24,7 +24,9 @@
       "Bash(unzip -l \"AERO-GAURD CODES.zip\")",
       "Bash(cd \"/c/Users/CLYK/OneDrive/Desktop/AERO GUARD\" && mkdir -p aeroguard_flask/templates aeroguard_flask/static/css aeroguard_flask/static/js && echo ok)",
       "Bash(pip show *)",
-      "Bash(python app.py)"
+      "Bash(python app.py)",
+      "Bash(cloudflared tunnel *)",
+      "Bash(curl -sI https://ata-valued-rock-inline.trycloudflare.com)"
     ]
   }
 }
