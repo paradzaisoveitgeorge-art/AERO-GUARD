@@ -7,11 +7,28 @@
     &#128276;
     <span class="topbar__bell-dot"></span>
   </button>
+  {% if current_provider %}
+  <div class="topbar__tenant" title="You are operating in the {{ current_provider.name }} tenant">
+    <span class="topbar__tenant-label">Tenant</span>
+    <span class="topbar__tenant-name">{{ current_provider.name }}</span>
+  </div>
+  {% endif %}
   <div class="topbar__user">
-    <div class="topbar__avatar">SM</div>
+    {% set initials = (current_user.name.split()[0][0] ~ current_user.name.split()[-1][0]) if current_user.is_authenticated and current_user.name else 'AG' %}
+    <div class="topbar__avatar">{{ initials | upper }}</div>
     <div>
-      <div class="topbar__user-name">Soviet Moyo</div>
-      <div class="topbar__user-role">Admin &middot; MFA verified</div>
+      <div class="topbar__user-name">{{ current_user.name if current_user.is_authenticated else 'Guest' }}</div>
+      <div class="topbar__user-role">
+        {% if current_user.is_authenticated %}
+          {{ current_user.role }}{% if current_user.mfa %} &middot; MFA verified{% endif %}
+        {% else %}—{% endif %}
+      </div>
     </div>
+    {% if current_user.is_authenticated %}
+      <form method="post" action="{{ url_for('logout') }}" style="margin-left:12px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="topbar__logout" title="Sign out">Sign out</button>
+      </form>
+    {% endif %}
   </div>
 </header>

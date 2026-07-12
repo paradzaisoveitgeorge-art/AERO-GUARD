@@ -1,0 +1,26 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Set new password · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Set a new password</h1>
+
+  {% if done %}
+    <div class="alert alert-ok">Password updated. You can now sign in.</div>
+    <div class="footer-link"><a href="{{ url_for('login') }}">Go to sign in →</a></div>
+  {% elif expired %}
+    <div class="alert alert-err">
+      This reset link is invalid or has expired. Request a new one from the
+      <a href="{{ url_for('forgot') }}" style="color:inherit; text-decoration:underline;">forgot password</a> page.
+    </div>
+  {% else %}
+    {% if error %}<div class="alert alert-err">{{ error }}</div>{% endif %}
+    <p class="subtitle">Pick something at least 8 characters long.</p>
+    <form method="post" action="{{ url_for('reset_password', token=token) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="field">
+        <label for="password">New password</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required autofocus />
+      </div>
+      <button class="btn" type="submit">Save password</button>
+    </form>
+  {% endif %}
+{% endblock %}

@@ -7,7 +7,9 @@
     <h1 class="page-header__title">Vouchers</h1>
     <p class="page-header__subtitle">Issue compensation for schedule changes, cancellations, ADMs and goodwill</p>
   </div>
+  {% if can('voucher:export') %}
   <a class="btn" style="background: var(--slate-800); color: var(--slate-100);" href="{{ url_for('export_vouchers_csv') }}">&#11015; Export CSV</a>
+  {% endif %}
 </div>
 
 <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 12px; font-size: 12px; color: var(--amber-400);">
@@ -18,7 +20,13 @@
   <div style="display:grid; grid-template-columns: 1fr; gap: 24px;" class="voucher-layout">
     <div class="card">
       <div class="card__header"><div class="card__title">Issue Voucher</div></div>
+      {% if current_user.role == 'L1' %}
+      <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 6px; padding: 10px; font-size: 11px; color: var(--indigo-300); margin-bottom: 10px;">
+        L1 cap: vouchers over ${{ L1_VOUCHER_CAP }} require L2/Admin approval &mdash; submission will be rejected.
+      </div>
+      {% endif %}
       <form class="form-stack" method="post" action="{{ url_for('issue_voucher') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div class="field">
           <label>Passenger *</label>
           <input name="pax" required />

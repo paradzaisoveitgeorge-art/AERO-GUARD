@@ -43,8 +43,10 @@
                class="{{ 'active' if active_nav == 'POLICIES' else '' }}">Maintenance Advisory</a></li>
         <li><a href="{{ url_for('provider_escalations') }}?new=1"
                class="">Escalate Case</a></li>
+        {% if can('emulate:use') %}
         <li><a href="{{ url_for('provider_emulate') }}"
                class="{{ 'active' if active_nav == 'EMULATE' else '' }}">Assist</a></li>
+        {% endif %}
       </ul>
     </li>
   </ul>

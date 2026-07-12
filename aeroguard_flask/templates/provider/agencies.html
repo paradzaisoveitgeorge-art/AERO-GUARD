@@ -7,7 +7,11 @@
     <h1 class="page-header__title">Agency Provisioning</h1>
     <p class="page-header__subtitle">Add, configure, suspend or remove agencies on AERO-GUARD</p>
   </div>
+  {% if can('agency:provision') %}
   <button class="btn btn-primary" onclick="document.getElementById('provision-modal').style.display='block'">+ Provision Agency</button>
+  {% else %}
+  <span class="role-locked" title="Provisioning requires ADMIN role">+ Provision Agency 🔒</span>
+  {% endif %}
 </div>
 
 <form method="get" id="filter-form" class="filter-bar">
@@ -41,13 +45,18 @@
 
   <div class="bulk-actions" id="bulk-actions" style="display:none;">
     <span class="count" id="bulk-count">0 selected</span>
+    {% if can('agency:bulk_other') %}
     <button type="button" class="btn btn-amber-soft" onclick="bulkAction('SUSPEND')">Suspend</button>
     <button type="button" class="btn btn-emerald-soft" onclick="bulkAction('REACTIVATE')">Reactivate</button>
+    {% endif %}
+    {% if can('agency:bulk_delete') %}
     <button type="button" class="btn btn-rose-soft" onclick="bulkAction('DELETE')">Delete</button>
+    {% endif %}
   </div>
 </form>
 
 <form id="bulk-form" method="post" action="{{ url_for('bulk_agency_action') }}" style="display:none;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
   <input type="hidden" name="action" id="bulk-form-action" />
 </form>
 
@@ -89,12 +98,18 @@
         <td class="row-actions">
           <button type="button" class="icon-btn sky" title="Audit" onclick="alert('Opening audit for {{ a.name }}')">&#128202;</button>
           <button type="button" class="icon-btn indigo" title="Resend welcome" onclick="alert('Welcome email resent to {{ a.admin_email }}')">&#9993;</button>
+          {% if can('agency:suspend') %}
           <form method="post" action="{{ url_for('toggle_suspend_agency', agency_id=a.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="icon-btn amber">{{ "Reactivate" if a.status == "SUSPENDED" else "Suspend" }}</button>
           </form>
+          {% endif %}
+          {% if can('agency:delete') %}
           <form method="post" action="{{ url_for('delete_agency', agency_id=a.id) }}" onsubmit="return confirm('Remove {{ a.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="icon-btn red">Delete</button>
           </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -114,6 +129,7 @@
   </div>
   <div class="modal-body">
     <form id="provision-form" class="form-stack" method="post" action="{{ url_for('provision_agency') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="field">
         <label>Agency name *</label>
         <input name="name" required />

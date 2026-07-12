@@ -1,54 +1,169 @@
-"""AERO-GUARD Flask clone of the Lovable-built provider console.
+"""AERO-GUARD Flask MVP — provider console + Smartpoint consultant demo.
 
-Ported page by page from lovable_source/ (TanStack Start + React).
-See ../BUILD_PLAN.md for build order and progress.
+Section 2 of the MVP build introduces a real SQLite database (via
+SQLAlchemy + Flask-Migrate). Every entity that used to live in an
+in-memory list (agencies, vouchers, escalations, threads, etc.) now
+persists to disk. Use the CLI commands at the bottom of this file to
+seed and reset demo data:
+
+    flask --app app seed          # populate the standard demo state
+    flask --app app reset-demo    # wipe and re-seed
+
+Multi-tenancy: every operational row carries a ``provider_id``. Until
+auth lands in Section 3 we read all data globally so the visual demo
+keeps working; the schema is already correct for tenant scoping later.
 """
+from __future__ import annotations
+
 import os
 import random
+import secrets
+from pathlib import Path
 
-from flask import Flask, render_template, request, redirect, url_for
+from datetime import datetime, timedelta
+
+from dotenv import load_dotenv
+from flask import (
+    Flask,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_login import (
+    LoginManager,
+    current_user,
+    login_required,
+    login_user,
+    logout_user,
+)
+from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
+from flask import jsonify
+
+from models import (
+    Agency,
+    Alert,
+    AuditLog,
+    Escalation,
+    LearningModule,
+    Message,
+    PendingIssue,
+    PolicyDoc,
+    Provider,
+    Thread,
+    User,
+    Voucher,
+    db,
+)
+from permissions import L1_VOUCHER_CAP, can, require
+
+# Load .env if present (no-op in production where vars come from the host)
+load_dotenv()
 
 app = Flask(__name__)
 
+# --- Configuration ----------------------------------------------------------
+_env = os.environ.get("FLASK_ENV", "development").lower()
+_is_prod = _env == "production"
+
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    if _is_prod:
+        raise RuntimeError("SECRET_KEY env var is required when FLASK_ENV=production")
+    _secret = secrets.token_hex(32)
+app.config["SECRET_KEY"] = _secret
+app.config["DEBUG"] = not _is_prod
+
+# DATABASE_URL — Postgres on production hosts, SQLite locally.
+_default_db = "sqlite:///" + str(Path(app.instance_path) / "aeroguard.db")
+db_url = os.environ.get("DATABASE_URL", _default_db)
+# Render/Heroku give us postgres:// but SQLAlchemy wants postgresql://
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+app.config["SQLALCHEMY_DATABASE_URI"] = db_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# Session cookie hardening. Secure cookies are only sent over HTTPS; we
+# disable that locally so dev login works on http://localhost.
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = _is_prod
+app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+app.config["REMEMBER_COOKIE_SECURE"] = _is_prod
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=12)
+# CSRF tokens never expire mid-session (avoids "form too old" errors on
+# long demo sessions). We still rotate them each login.
+app.config["WTF_CSRF_TIME_LIMIT"] = None
+
+Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
+db.init_app(app)
+Migrate(app, db)
+CSRFProtect(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = "login"
+login_manager.login_message = "Please sign in to continue."
+login_manager.login_message_category = "info"
+
+
+@login_manager.user_loader
+def _load_user(user_id: str):
+    return User.query.get(user_id)
+
+
+# Login rate limiter — 5 attempts/min per IP. Runs in-memory; a real
+# deploy would back this with Redis. Fine for the MVP.
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
+
+
+@app.context_processor
+def inject_user():
+    """Make ``current_user`` + permission helpers available in every template."""
+    provider = None
+    if current_user.is_authenticated and current_user.provider_id:
+        provider = Provider.query.get(current_user.provider_id)
+    return {
+        "current_user": current_user,
+        "current_provider": provider,
+        "can": lambda action, amount=None: can(current_user, action, amount=amount),
+        "L1_VOUCHER_CAP": L1_VOUCHER_CAP,
+        "humanize": humanize,
+        "humanize_sla": humanize_sla,
+    }
+
+
+# Public endpoints that never require login. Everything else under
+# /provider/* and / is locked down by the before_request guard below.
+PUBLIC_ENDPOINTS = {"login", "logout", "forgot", "reset_password", "healthz", "static"}
+
+
+@app.errorhandler(403)
+def _forbidden(_e):
+    return render_template("auth/403.html"), 403
+
+
+@app.before_request
+def _require_login_for_provider_console():
+    if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
+        return
+    if not current_user.is_authenticated:
+        return redirect(url_for("login", next=request.path))
+    # Consultants cannot access /provider/* (the helpdesk console).
+    if request.path.startswith("/provider") and not current_user.is_provider_staff():
+        abort(403)
+
+
+# --- Static reference data (still in code — never changes per-tenant) -------
 COUNTRIES = ["ZW", "ZA", "KE", "UG", "TZ", "NG", "GH", "ET", "RW", "BW"]
 POLICY_TEMPLATES = ["Standard Compliance", "Full Enterprise", "Trial / Lite", "Custom"]
 CURRENCIES = ["USD", "EUR", "ZAR", "KES", "UGX", "NGN", "GHS", "ZWL", "RWF"]
-
-AGENCIES = [
-    {"id": "AG-1001", "name": "Skylink Travel", "pcc": "7XQ9", "gds": "1G", "country": "ZW", "seats": 25, "used_seats": 22, "status": "ACTIVE", "month_adms": 2, "last_active": "3 min ago", "policy_level": "STANDARD", "admin_email": "admin@skylink.zw"},
-    {"id": "AG-1002", "name": "Voyage Africa", "pcc": "K3P1", "gds": "1G", "country": "ZA", "seats": 60, "used_seats": 55, "status": "ACTIVE", "month_adms": 7, "last_active": "12 min ago", "policy_level": "ENTERPRISE", "admin_email": "ops@voyage.co.za"},
-    {"id": "AG-1003", "name": "BlueSky Holidays", "pcc": "QM44", "gds": "1A", "country": "KE", "seats": 15, "used_seats": 9, "status": "TRIAL", "month_adms": 0, "last_active": "1 hr ago", "policy_level": "BASIC", "admin_email": "info@bluesky.ke"},
-    {"id": "AG-1004", "name": "Continental Tours", "pcc": "B2H7", "gds": "1G", "country": "ZW", "seats": 12, "used_seats": 11, "status": "SUSPENDED", "month_adms": 14, "last_active": "4 days ago", "policy_level": "STANDARD", "admin_email": "tt@continental.zw"},
-    {"id": "AG-1005", "name": "Equator Travel", "pcc": "EQ12", "gds": "1A", "country": "UG", "seats": 8, "used_seats": 0, "status": "PROVISIONING", "month_adms": 0, "last_active": "—", "policy_level": "BASIC", "admin_email": "admin@equator.ug"},
-    {"id": "AG-1006", "name": "Mara Routes", "pcc": "MR55", "gds": "1S", "country": "KE", "seats": 20, "used_seats": 4, "status": "ARCHIVED", "month_adms": 0, "last_active": "3 mo ago", "policy_level": "BASIC", "admin_email": "hello@mara.ke"},
-]
-
-HELPDESK_USERS = [
-    {"id": "U-01", "name": "Soviet Moyo", "email": "soviet@aero-guard.io", "role": "ADMIN", "active": True, "mfa": True, "last_login": "now"},
-    {"id": "U-02", "name": "Tariro Ncube", "email": "tariro@aero-guard.io", "role": "L2", "active": True, "mfa": True, "last_login": "2 hr ago"},
-    {"id": "U-03", "name": "Kelvin Owusu", "email": "kelvin@aero-guard.io", "role": "L1", "active": True, "mfa": False, "last_login": "yesterday"},
-    {"id": "U-04", "name": "Amina Yusuf", "email": "amina@aero-guard.io", "role": "L1", "active": False, "mfa": False, "last_login": "21 days ago"},
-]
-
-VOUCHERS = [
-    {"id": "VCH-44021", "pax": "MOYO/SOVIET", "pnr": "X7K2QP", "ticket": "157-2244778899", "reason": "Schedule change >4h", "amount": 120, "currency": "USD", "payment": "REFUND", "card": "•••• 4421", "policy": "IROPS-A", "status": "ISSUED", "issued": "today"},
-    {"id": "VCH-44020", "pax": "NCUBE/T MRS", "pnr": "RR81LM", "ticket": "157-2244778812", "reason": "Goodwill", "amount": 50, "currency": "USD", "payment": "VOUCHER", "card": "—", "policy": "GOODWILL", "status": "REDEEMED", "issued": "today"},
-]
-
-ESCALATIONS = [
-    {"id": "ESC-7781", "agency": "Skylink Travel", "pnr": "X7K2QP", "subject": "PCC emulation failing — auth token expired", "level": "L2", "priority": "HIGH", "opened": "12 min ago", "status": "PENDING", "sla": "48 min left"},
-    {"id": "ESC-7780", "agency": "Voyage Africa", "pnr": "RR81LM", "subject": "ADM dispute QR/2510 — needs evidence pack", "level": "VENDOR", "priority": "HIGH", "opened": "1 hr ago", "status": "OPEN", "sla": "3 hr left"},
-    {"id": "ESC-7779", "agency": "BlueSky Holidays", "pnr": "—", "subject": "Onboarding: SSO not redirecting", "level": "L1", "priority": "MED", "opened": "3 hr ago", "status": "OPEN", "sla": "21 hr left"},
-]
-
-POLICY_DOCS = [
-    {"cat": "GDS", "name": "Galileo 1G Terms of Use", "v": "2025.06"},
-    {"cat": "GDS", "name": "Amadeus 1A Agreement", "v": "2025.04"},
-    {"cat": "NDC", "name": "NDC Distribution Agreement", "v": "v21"},
-    {"cat": "OTA", "name": "OTA Connectivity Standards", "v": "2024.11"},
-    {"cat": "AERO-GUARD", "name": "Acceptable Use Policy", "v": "2025.05"},
-    {"cat": "AERO-GUARD", "name": "Data Processing Addendum", "v": "2025.02"},
-]
 
 NAV_GROUPS = [
     {"label": "OVERVIEW", "items": [
@@ -61,6 +176,7 @@ NAV_GROUPS = [
     ]},
     {"label": "INTELLIGENCE", "items": [
         {"key": "AUDITS", "label": "Agency ADM Audits", "icon": "\U0001f4ca", "endpoint": "provider_audits"},
+        {"key": "AUDIT_LOG", "label": "Audit Log", "icon": "\U0001f4dd", "endpoint": "provider_audit_log"},
     ]},
     {"label": "SUPPORT TOOLS", "items": [
         {"key": "ESCALATIONS", "label": "Escalations", "icon": "⚠", "endpoint": "provider_escalations"},
@@ -73,20 +189,145 @@ NAV_GROUPS = [
     ]},
 ]
 
-ALERTS = [
-    {"id": "A1", "severity": "CRIT", "source": "1G GALILEO", "title": "Intermittent timeouts on AP-2 host", "time": "14:02", "ongoing": True, "impacted_agencies": 23},
-    {"id": "A2", "severity": "WARN", "source": "QR AIRWAYS", "title": "DOH ground stop — IROPS protective rebooking advised", "time": "13:41", "ongoing": True, "impacted_agencies": 8},
-    {"id": "A3", "severity": "INFO", "source": "AERO-GUARD", "title": "NCP rules v4.12 published (EK, ET, WB)", "time": "11:20", "ongoing": False, "impacted_agencies": 45},
-    {"id": "A4", "severity": "WARN", "source": "ET AIRLINES", "title": "Schedule change wave — 312 PNRs require action", "time": "09:15", "ongoing": True, "impacted_agencies": 14},
+ROLE_HINTS = {
+    "L1": "Ticket support, view dashboards, respond to clients",
+    "L2": "Above + Emulate PCC, escalate to vendors, manage vouchers",
+    "ADMIN": "Full control: provision agencies, manage users, audit trail",
+}
+
+VOUCHER_REASONS = ["Schedule change >4h", "Flight cancellation", "ADM dispute", "Goodwill", "IROPS rebooking"]
+VOUCHER_POLICIES = ["IROPS-A", "IROPS-B", "GOODWILL", "ADM-OFFSET", "LOYALTY"]
+VOUCHER_PAYMENTS = ["REFUND", "VOUCHER", "CREDIT NOTE", "CASH", "TRANSFER"]
+
+REASON_DIST = [
+    {"label": "Duplicate booking",     "pct": 32, "color": "bar-rose"},
+    {"label": "Fare rule violation",   "pct": 24, "color": "bar-amber"},
+    {"label": "Time limit expiry",     "pct": 18, "color": "bar-indigo"},
+    {"label": "Schedule change",       "pct": 14, "color": "bar-sky"},
+    {"label": "Other",                 "pct": 12, "color": "bar-slate"},
 ]
 
-PENDING_ISSUES = [
-    {"id": "P-1", "agency": "Skylink Travel", "type": "DOCS SSR", "summary": "Passport hyphen rejected — 3 PAX", "age": "8 min", "priority": "HIGH"},
-    {"id": "P-2", "agency": "Voyage Africa", "type": "ADM Dispute", "summary": "QR/2510 evidence pack pending", "age": "1 hr", "priority": "HIGH"},
-    {"id": "P-3", "agency": "BlueSky Holidays", "type": "Onboarding", "summary": "SSO redirect failing", "age": "3 hr", "priority": "MED"},
-    {"id": "P-4", "agency": "Continental Tours", "type": "Voucher", "summary": "VCH-44018 awaiting approval >$500", "age": "5 hr", "priority": "MED"},
+DRILLDOWN_RULES = [
+    {"code": "FXR-103", "tone": "amber",  "text": "Fare basis mismatch · 4 PNRs · est $1,600"},
+    {"code": "TKT-204", "tone": "rose",   "text": "Ticketing time limit expired · 2 PNRs · est $800"},
+    {"code": "NCP-011", "tone": "indigo", "text": "Name change post-ticketing · 1 PNR · est $320"},
 ]
 
+SMARTPOINT_VOUCHERS = [
+    {"id": "VCH-44021", "tier": "Platinum", "pax": "DEMHE/PATRICK",   "amount": 850, "currency": "USD", "status": "Active",   "airline": "QR", "expires": "31DEC25", "policy_ref": "QR-PLT-2024-A"},
+    {"id": "VCH-44018", "tier": "Gold",     "pax": "NCUBE/THANDIWE",  "amount": 420, "currency": "USD", "status": "Pending",  "airline": "FN", "expires": "15NOV25", "policy_ref": "FN-GLD-2024-B"},
+    {"id": "VCH-44012", "tier": "Silver",   "pax": "MOYO/TANAKA",     "amount": 180, "currency": "USD", "status": "Redeemed", "airline": "FN", "expires": "01JUL25", "policy_ref": "FN-SLV-2024-C"},
+]
+
+TUTORIALS = [
+    {"id": "passport-scan", "title": "Passport Auto-Fill & MRZ Scan",  "blurb": "Drop a passport image — AERO-GUARD reads the MRZ, validates ICAO 9303, and pushes DOCS SSR to the PNR. Zero spelling errors.", "duration": "1:42", "tag": "DOCS · OCR"},
+    {"id": "pnr-validator", "title": "Live PNR Rule Validator",        "blurb": "Watch AERO-GUARD intercept a min-stay breach mid-pricing and suggest the compliant fare basis before ticketing.",         "duration": "2:15", "tag": "ADM · Rules"},
+    {"id": "adm-watch",     "title": "ADM Watch & Voucher Issuance",   "blurb": "End-to-end demo: catch a tax-code violation, issue a goodwill voucher, and audit the trail from the helpdesk console.",   "duration": "2:58", "tag": "Vouchers · Audit"},
+]
+
+
+# --- Time helpers ----------------------------------------------------------
+
+def humanize(when, *, future_ok: bool = False) -> str:
+    """Convert a datetime → '3 min ago', 'just now', 'in 2 hr', '—' if None."""
+    if when is None:
+        return "—"
+    now = datetime.utcnow()
+    delta = now - when
+    seconds = delta.total_seconds()
+    if seconds < 0:
+        if not future_ok:
+            return "just now"
+        seconds = -seconds
+        suffix = lambda s: f"in {s}"
+    else:
+        suffix = lambda s: f"{s} ago"
+    if seconds < 45:
+        return "just now" if seconds >= 0 and delta >= timedelta(0) else suffix("a few seconds")
+    minutes = seconds / 60
+    if minutes < 60:
+        return suffix(f"{int(minutes)} min")
+    hours = minutes / 60
+    if hours < 24:
+        return suffix(f"{int(hours)} hr")
+    days = hours / 24
+    if days < 2:
+        return "yesterday" if not future_ok else "tomorrow"
+    if days < 30:
+        return suffix(f"{int(days)} days")
+    if days < 365:
+        return suffix(f"{int(days/30)} mo")
+    return suffix(f"{int(days/365)} yr")
+
+
+def humanize_sla(due: "datetime | None") -> str:
+    """Render SLA deadline: 'X left' if future, 'overdue Yh' if past."""
+    if due is None:
+        return "—"
+    now = datetime.utcnow()
+    delta = due - now
+    secs = delta.total_seconds()
+    if secs <= 0:
+        # past due
+        secs = -secs
+        if secs < 3600:
+            return f"overdue {int(secs / 60)} min"
+        if secs < 86400:
+            return f"overdue {int(secs / 3600)} hr"
+        return f"overdue {int(secs / 86400)} days"
+    if secs < 3600:
+        return f"{int(secs / 60)} min left"
+    if secs < 86400:
+        return f"{int(secs / 3600)} hr left"
+    return f"{int(secs / 86400)} days left"
+
+
+# --- Tenancy helpers -------------------------------------------------------
+
+def current_provider_id() -> str | None:
+    """The provider_id of the logged-in user, or None for consultants/anon."""
+    return getattr(current_user, "provider_id", None)
+
+
+def tenant_q(model):
+    """Return ``model.query`` filtered to the current user's provider.
+
+    Use for every list/search endpoint that touches a tenant-scoped table
+    (Agency, User, Voucher, Escalation, Thread). Catalog tables
+    (PolicyDoc, LearningModule, Alert, PendingIssue) are shared and
+    should query the model directly.
+    """
+    return model.query.filter_by(provider_id=current_provider_id())
+
+
+def get_owned_or_404(model, pk):
+    """Single-row lookup that 404s if the row is missing OR not ours.
+
+    We return 404 (not 403) on cross-tenant access so the response is
+    indistinguishable from "doesn't exist" — that way an attacker can't
+    use the error code to probe which IDs belong to other tenants.
+    """
+    obj = model.query.get(pk)
+    if obj is None:
+        abort(404)
+    if getattr(obj, "provider_id", None) != current_provider_id():
+        abort(404)
+    return obj
+
+
+def write_audit(action: str, target_type: str, target_id: str, *, note: str = "") -> None:
+    """Append a row to the audit log. Always tagged with provider + actor."""
+    db.session.add(AuditLog(
+        provider_id=current_provider_id(),
+        actor_user_id=getattr(current_user, "id", None),
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id),
+        note=note or None,
+    ))
+
+
+# --- Helpers ---------------------------------------------------------------
 
 def render_provider(template_name, active_nav, **context):
     groups = [
@@ -101,36 +342,187 @@ def render_provider(template_name, active_nav, **context):
     return render_template(template_name, nav_groups=groups, active_nav=active_nav, **context)
 
 
-SMARTPOINT_VOUCHERS = [
-    {"id": "VCH-44021", "tier": "Platinum", "pax": "DEMHE/PATRICK", "amount": 850, "currency": "USD", "status": "Active", "airline": "QR", "expires": "31DEC25", "policy_ref": "QR-PLT-2024-A"},
-    {"id": "VCH-44018", "tier": "Gold", "pax": "NCUBE/THANDIWE", "amount": 420, "currency": "USD", "status": "Pending", "airline": "FN", "expires": "15NOV25", "policy_ref": "FN-GLD-2024-B"},
-    {"id": "VCH-44012", "tier": "Silver", "pax": "MOYO/TANAKA", "amount": 180, "currency": "USD", "status": "Redeemed", "airline": "FN", "expires": "01JUL25", "policy_ref": "FN-SLV-2024-C"},
-]
+def agency_to_dict(a: Agency) -> dict:
+    """Templates were written against dicts — keep that contract."""
+    return {
+        "id": a.id, "name": a.name, "pcc": a.pcc, "gds": a.gds, "country": a.country,
+        "seats": a.seats, "used_seats": a.used_seats, "status": a.status,
+        "month_adms": a.month_adms,
+        "last_active": humanize(a.updated_at) if a.status != "PROVISIONING" else "—",
+        "policy_level": a.policy_level, "admin_email": a.admin_email,
+    }
 
-TUTORIALS = [
-    {"id": "passport-scan", "title": "Passport Auto-Fill & MRZ Scan", "blurb": "Drop a passport image — AERO-GUARD reads the MRZ, validates ICAO 9303, and pushes DOCS SSR to the PNR. Zero spelling errors.", "duration": "1:42", "tag": "DOCS · OCR"},
-    {"id": "pnr-validator", "title": "Live PNR Rule Validator", "blurb": "Watch AERO-GUARD intercept a min-stay breach mid-pricing and suggest the compliant fare basis before ticketing.", "duration": "2:15", "tag": "ADM · Rules"},
-    {"id": "adm-watch", "title": "ADM Watch & Voucher Issuance", "blurb": "End-to-end demo: catch a tax-code violation, issue a goodwill voucher, and audit the trail from the helpdesk console.", "duration": "2:58", "tag": "Vouchers · Audit"},
-]
 
+def voucher_to_dict(v: Voucher) -> dict:
+    return {
+        "id": v.id, "pax": v.pax, "pnr": v.pnr, "ticket": v.ticket,
+        "reason": v.reason, "amount": v.amount, "currency": v.currency,
+        "payment": v.payment, "card": v.card, "policy": v.policy,
+        "status": v.status,
+        "issued": humanize(v.created_at),
+    }
+
+
+def escalation_to_dict(e: Escalation) -> dict:
+    return {
+        "id": e.id, "agency": e.agency, "pnr": e.pnr, "subject": e.subject,
+        "level": e.level, "priority": e.priority,
+        "opened": humanize(e.created_at),
+        "status": e.status,
+        "sla": humanize_sla(e.sla_due_at),
+    }
+
+
+def thread_to_dict(t: Thread) -> dict:
+    return {
+        "id": t.id, "agency": t.agency, "agent": t.agent, "unread": t.unread, "last": t.last,
+        "messages": [{"from": m.sender, "text": m.text, "t": m.t} for m in t.messages],
+    }
+
+
+def all_agencies() -> list[Agency]:
+    """Tenant-scoped, non-deleted agency list for list endpoints + dropdowns."""
+    return (
+        tenant_q(Agency)
+        .filter(Agency.deleted_at.is_(None))
+        .order_by(Agency.created_at)
+        .all()
+    )
+
+
+def _landing_url_for(user: User) -> str:
+    """Where a user lands after login: provider staff → console, consultant → smartpoint."""
+    return url_for("provider_dashboard") if user.is_provider_staff() else url_for("smartpoint_demo")
+
+
+# --- Routes: auth ---------------------------------------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(_landing_url_for(current_user))
+
+    error = None
+    next_url = request.args.get("next") or request.form.get("next") or ""
+
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+        remember = bool(request.form.get("remember"))
+
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        if user is None or not user.check_password(password):
+            error = "Invalid email or password."
+        elif not user.active:
+            error = "This account is disabled. Contact your administrator."
+        else:
+            login_user(user, remember=remember)
+            user.last_login_at = datetime.utcnow()
+            user.last_login = "now"  # legacy display string kept in sync
+            db.session.commit()
+            # Only honour next_url if it's a local path (open-redirect guard).
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+            return redirect(_landing_url_for(user))
+
+    return render_template("auth/login.html", error=error, next=next_url)
+
+
+@app.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    flash("Signed out.", "info")
+    return redirect(url_for("login"))
+
+
+@app.route("/forgot", methods=["GET", "POST"])
+@limiter.limit("3 per minute", methods=["POST"])
+def forgot():
+    """Generate a reset token and *display* it on screen — no email yet."""
+    import secrets as _secrets
+
+    token = None
+    reset_link = None
+    submitted = False
+    if request.method == "POST":
+        submitted = True
+        email = (request.form.get("email") or "").strip().lower()
+        user = User.query.filter(db.func.lower(User.email) == email).first()
+        if user and user.active:
+            token = _secrets.token_urlsafe(24)
+            user.reset_token = token
+            user.reset_expires = datetime.utcnow() + timedelta(hours=2)
+            db.session.commit()
+            reset_link = url_for("reset_password", token=token, _external=True)
+    return render_template(
+        "auth/forgot.html",
+        submitted=submitted,
+        reset_link=reset_link,
+    )
+
+
+@app.route("/reset/<token>", methods=["GET", "POST"])
+def reset_password(token: str):
+    user = User.query.filter_by(reset_token=token).first()
+    expired = (
+        user is None
+        or user.reset_expires is None
+        or user.reset_expires < datetime.utcnow()
+    )
+    error = None
+    done = False
+    if request.method == "POST":
+        if expired:
+            error = "Reset link is invalid or expired."
+        else:
+            pw = request.form.get("password") or ""
+            if len(pw) < 8:
+                error = "Password must be at least 8 characters."
+            else:
+                user.set_password(pw)
+                user.reset_token = None
+                user.reset_expires = None
+                db.session.commit()
+                done = True
+    return render_template("auth/reset.html", expired=expired, error=error, done=done, token=token)
+
+
+# --- Routes: consultant view ----------------------------------------------
 
 @app.route("/")
+@login_required
 def smartpoint_demo():
+    if current_user.is_provider_staff():
+        return redirect(url_for("provider_dashboard"))
     return render_template("smartpoint.html", vouchers=SMARTPOINT_VOUCHERS, tutorials=TUTORIALS)
 
 
+# --- Routes: provider dashboard -------------------------------------------
+
 @app.route("/provider")
 def provider_dashboard():
-    adms_prevented = 12
+    # Tenant-scoped counters from real data.
+    own_agencies = all_agencies()
+    adms_prevented = sum(a.month_adms for a in own_agencies)
+    alerts = Alert.query.all()  # catalog data, shared across tenants
+    # Pending issues are catalog/seeded — filter to the agencies we own.
+    own_agency_names = {a.name for a in own_agencies}
+    pending = [p for p in PendingIssue.query.all() if p.agency in own_agency_names]
     return render_provider(
         "provider/dashboard.html",
         "DASHBOARD",
         adms_prevented=adms_prevented,
         dollar_saved=adms_prevented * 350,
-        alerts=ALERTS,
-        pending_issues=PENDING_ISSUES,
+        alerts=[{"id": a.id, "severity": a.severity, "source": a.source, "title": a.title,
+                 "time": a.time, "ongoing": a.ongoing, "impacted_agencies": a.impacted_agencies} for a in alerts],
+        pending_issues=[{"id": p.id, "agency": p.agency, "type": p.type, "summary": p.summary,
+                         "age": p.age, "priority": p.priority} for p in pending],
     )
 
+
+# --- Routes: agencies -----------------------------------------------------
 
 SORT_KEYS = {
     "name": lambda a: a["name"].lower(),
@@ -148,8 +540,9 @@ def provider_agencies():
     sort_by = request.args.get("sort", "name")
     sort_dir = request.args.get("dir", "asc")
 
+    rows = [agency_to_dict(a) for a in all_agencies()]
     rows = [
-        a for a in AGENCIES
+        a for a in rows
         if (filter_gds == "ALL" or a["gds"] == filter_gds)
         and (filter_country == "ALL" or a["country"] == filter_country)
         and (filter_policy == "ALL" or a["policy_level"] == filter_policy)
@@ -158,56 +551,60 @@ def provider_agencies():
 
     def sort_url(key):
         next_dir = "desc" if (sort_by == key and sort_dir == "asc") else "asc"
-        return url_for("provider_agencies", gds=filter_gds, country=filter_country, policy=filter_policy, sort=key, dir=next_dir)
+        return url_for("provider_agencies", gds=filter_gds, country=filter_country,
+                       policy=filter_policy, sort=key, dir=next_dir)
 
     return render_provider(
-        "provider/agencies.html",
-        "AGENCIES",
-        agencies=rows,
-        countries=COUNTRIES,
-        policy_templates=POLICY_TEMPLATES,
-        filter_gds=filter_gds,
-        filter_country=filter_country,
-        filter_policy=filter_policy,
-        sort_by=sort_by,
-        sort_dir=sort_dir,
-        sort_url=sort_url,
+        "provider/agencies.html", "AGENCIES",
+        agencies=rows, countries=COUNTRIES, policy_templates=POLICY_TEMPLATES,
+        filter_gds=filter_gds, filter_country=filter_country, filter_policy=filter_policy,
+        sort_by=sort_by, sort_dir=sort_dir, sort_url=sort_url,
         querystring=request.query_string.decode(),
     )
 
 
 @app.route("/provider/agencies/provision", methods=["POST"])
+@require("agency:provision")
 def provision_agency():
     new_id = f"AG-{random.randint(1000, 9999)}"
-    AGENCIES.insert(0, {
-        "id": new_id,
-        "name": request.form.get("name") or "Unnamed",
-        "pcc": (request.form.get("pcc") or "XXXX").upper(),
-        "gds": request.form.get("gds") or "1G",
-        "country": request.form.get("country") or "ZW",
-        "seats": int(request.form.get("seats") or 10),
-        "used_seats": 0,
-        "status": "TRIAL" if request.form.get("mode") == "TRIAL" else "PROVISIONING",
-        "month_adms": 0,
-        "last_active": "—",
-        "policy_level": (request.form.get("policy") or "Standard Compliance"),
-        "admin_email": request.form.get("admin_email") or "",
-    })
+    name = request.form.get("name") or "Unnamed"
+    db.session.add(Agency(
+        id=new_id,
+        provider_id=current_provider_id(),
+        name=name,
+        pcc=(request.form.get("pcc") or "XXXX").upper(),
+        gds=request.form.get("gds") or "1G",
+        country=request.form.get("country") or "ZW",
+        seats=int(request.form.get("seats") or 10),
+        used_seats=0,
+        status="TRIAL" if request.form.get("mode") == "TRIAL" else "PROVISIONING",
+        month_adms=0,
+        last_active="—",
+        policy_level=request.form.get("policy") or "Standard Compliance",
+        admin_email=request.form.get("admin_email") or "",
+    ))
+    write_audit("AGENCY_PROVISION", "agency", new_id, note=name)
+    db.session.commit()
     return redirect(url_for("provider_agencies"))
 
 
 @app.route("/provider/agencies/<agency_id>/toggle-suspend", methods=["POST"])
+@require("agency:suspend")
 def toggle_suspend_agency(agency_id):
-    for a in AGENCIES:
-        if a["id"] == agency_id:
-            a["status"] = "ACTIVE" if a["status"] == "SUSPENDED" else "SUSPENDED"
-            break
+    a = get_owned_or_404(Agency, agency_id)
+    a.status = "ACTIVE" if a.status == "SUSPENDED" else "SUSPENDED"
+    write_audit("AGENCY_TOGGLE_SUSPEND", "agency", a.id, note=a.status)
+    db.session.commit()
     return redirect(request.referrer or url_for("provider_agencies"))
 
 
 @app.route("/provider/agencies/<agency_id>/delete", methods=["POST"])
+@require("agency:delete")
 def delete_agency(agency_id):
-    AGENCIES[:] = [a for a in AGENCIES if a["id"] != agency_id]
+    a = get_owned_or_404(Agency, agency_id)
+    a.deleted_at = datetime.utcnow()  # soft delete
+    write_audit("AGENCY_DELETE", "agency", a.id, note=a.name)
+    db.session.commit()
     return redirect(request.referrer or url_for("provider_agencies"))
 
 
@@ -215,114 +612,165 @@ def delete_agency(agency_id):
 def bulk_agency_action():
     action = request.form.get("action")
     ids = set(request.form.getlist("ids"))
+    if not ids:
+        return redirect(request.referrer or url_for("provider_agencies"))
+    needed = "agency:bulk_delete" if action == "DELETE" else "agency:bulk_other"
+    if not can(current_user, needed):
+        return render_template("auth/403.html"), 403
+    # Tenant-scope the bulk — silently ignore IDs that aren't ours.
+    targets = (
+        tenant_q(Agency)
+        .filter(Agency.id.in_(ids))
+        .all()
+    )
     if action == "DELETE":
-        AGENCIES[:] = [a for a in AGENCIES if a["id"] not in ids]
+        now = datetime.utcnow()
+        for a in targets:
+            a.deleted_at = now
+            write_audit("AGENCY_DELETE", "agency", a.id, note="bulk")
     elif action in ("SUSPEND", "REACTIVATE"):
         new_status = "SUSPENDED" if action == "SUSPEND" else "ACTIVE"
-        for a in AGENCIES:
-            if a["id"] in ids:
-                a["status"] = new_status
+        for a in targets:
+            a.status = new_status
+            write_audit("AGENCY_TOGGLE_SUSPEND", "agency", a.id, note=f"bulk:{new_status}")
+    db.session.commit()
     return redirect(request.referrer or url_for("provider_agencies"))
 
 
-ROLE_HINTS = {
-    "L1": "Ticket support, view dashboards, respond to clients",
-    "L2": "Above + Emulate PCC, escalate to vendors, manage vouchers",
-    "ADMIN": "Full control: provision agencies, manage users, audit trail",
-}
-
+# --- Routes: helpdesk users ----------------------------------------------
 
 @app.route("/provider/users")
 def provider_users():
-    return render_provider("provider/users.html", "USERS", users=HELPDESK_USERS, role_hints=ROLE_HINTS)
+    users = (
+        tenant_q(User)
+        .filter(User.role != "CONSULTANT")
+        .order_by(User.id)
+        .all()
+    )
+    return render_provider(
+        "provider/users.html", "USERS",
+        users=[{"id": u.id, "name": u.name, "email": u.email, "role": u.role,
+                "active": u.active, "mfa": u.mfa,
+                "last_login": humanize(u.last_login_at) if u.last_login_at else "never"}
+               for u in users],
+        role_hints=ROLE_HINTS,
+    )
 
 
 @app.route("/provider/users/invite", methods=["POST"])
+@require("user:invite")
 def invite_user():
     new_id = f"U-{random.randint(10, 99)}"
-    HELPDESK_USERS.insert(0, {
-        "id": new_id,
-        "name": request.form.get("name") or "Unnamed",
-        "email": request.form.get("email") or "",
-        "role": request.form.get("role") or "L1",
-        "active": True,
-        "mfa": False,
-        "last_login": "never",
-    })
+    email = (request.form.get("email") or f"{new_id.lower()}@example.com").lower()
+    # Enforce global email uniqueness without leaking who already owns it.
+    if User.query.filter(db.func.lower(User.email) == email).first():
+        flash("That email is already registered.", "info")
+        return redirect(url_for("provider_users"))
+    name = request.form.get("name") or "Unnamed"
+    role = request.form.get("role") or "L1"
+    if role not in ("ADMIN", "L2", "L1"):
+        role = "L1"
+    db.session.add(User(
+        id=new_id,
+        provider_id=current_provider_id(),
+        name=name,
+        email=email,
+        role=role,
+        active=True,
+        mfa=False,
+        last_login="never",
+    ))
+    write_audit("USER_INVITE", "user", new_id, note=email)
+    db.session.commit()
     return redirect(url_for("provider_users"))
 
 
 @app.route("/provider/users/<user_id>/toggle-active", methods=["POST"])
+@require("user:toggle_active")
 def toggle_user_active(user_id):
-    for u in HELPDESK_USERS:
-        if u["id"] == user_id:
-            u["active"] = not u["active"]
-            break
+    u = get_owned_or_404(User, user_id)
+    if u.id == current_user.id:
+        # Admins disabling themselves would lock them out — refuse.
+        flash("You can't disable your own account.", "info")
+        return redirect(request.referrer or url_for("provider_users"))
+    u.active = not u.active
+    write_audit("USER_TOGGLE_ACTIVE", "user", u.id, note="active" if u.active else "disabled")
+    db.session.commit()
     return redirect(request.referrer or url_for("provider_users"))
 
 
 @app.route("/provider/users/<user_id>/remove", methods=["POST"])
+@require("user:remove")
 def remove_user(user_id):
-    HELPDESK_USERS[:] = [u for u in HELPDESK_USERS if u["id"] != user_id]
+    u = get_owned_or_404(User, user_id)
+    if u.id == current_user.id:
+        flash("You can't remove your own account.", "info")
+        return redirect(request.referrer or url_for("provider_users"))
+    write_audit("USER_REMOVE", "user", u.id, note=u.email)
+    db.session.delete(u)
+    db.session.commit()
     return redirect(request.referrer or url_for("provider_users"))
 
 
-VOUCHER_REASONS = ["Schedule change >4h", "Flight cancellation", "ADM dispute", "Goodwill", "IROPS rebooking"]
-VOUCHER_POLICIES = ["IROPS-A", "IROPS-B", "GOODWILL", "ADM-OFFSET", "LOYALTY"]
-VOUCHER_PAYMENTS = ["REFUND", "VOUCHER", "CREDIT NOTE", "CASH", "TRANSFER"]
-
+# --- Routes: vouchers ----------------------------------------------------
 
 @app.route("/provider/vouchers")
 def provider_vouchers():
     search = request.args.get("q", "").strip().upper()
-    rows = [
-        v for v in VOUCHERS
-        if not search or search in v["id"] or search in v["pnr"] or search in v["pax"]
-    ]
+    q = tenant_q(Voucher)
+    if search:
+        like = f"%{search}%"
+        q = q.filter(db.or_(Voucher.id.ilike(like), Voucher.pnr.ilike(like), Voucher.pax.ilike(like)))
+    rows = [voucher_to_dict(v) for v in q.order_by(Voucher.created_at.desc()).all()]
     return render_provider(
-        "provider/vouchers.html",
-        "VOUCHERS",
-        vouchers=rows,
-        search=request.args.get("q", ""),
-        reasons=VOUCHER_REASONS,
-        policies=VOUCHER_POLICIES,
-        payments=VOUCHER_PAYMENTS,
-        currencies=CURRENCIES,
+        "provider/vouchers.html", "VOUCHERS",
+        vouchers=rows, search=request.args.get("q", ""),
+        reasons=VOUCHER_REASONS, policies=VOUCHER_POLICIES,
+        payments=VOUCHER_PAYMENTS, currencies=CURRENCIES,
     )
 
 
 @app.route("/provider/vouchers/issue", methods=["POST"])
 def issue_voucher():
     amount = float(request.form.get("amount") or 0)
-    VOUCHERS.insert(0, {
-        "id": f"VCH-{random.randint(10000, 99999)}",
-        "pax": (request.form.get("pax") or "").upper(),
-        "pnr": (request.form.get("pnr") or "").upper(),
-        "ticket": request.form.get("ticket") or "",
-        "reason": request.form.get("reason") or "",
-        "amount": amount,
-        "currency": request.form.get("currency") or "USD",
-        "payment": request.form.get("payment") or "REFUND",
-        "card": request.form.get("card") or "—",
-        "policy": request.form.get("policy") or "GOODWILL",
-        "status": "ISSUED",
-        "issued": "just now",
-    })
+    if not can(current_user, "voucher:issue", amount=amount):
+        return render_template("auth/403.html"), 403
+    new_id = f"VCH-{random.randint(10000, 99999)}"
+    db.session.add(Voucher(
+        id=new_id,
+        provider_id=current_provider_id(),
+        pax=(request.form.get("pax") or "").upper(),
+        pnr=(request.form.get("pnr") or "").upper(),
+        ticket=request.form.get("ticket") or "",
+        reason=request.form.get("reason") or "",
+        amount=amount,
+        currency=request.form.get("currency") or "USD",
+        payment=request.form.get("payment") or "REFUND",
+        card=request.form.get("card") or "—",
+        policy=request.form.get("policy") or "GOODWILL",
+        status="ISSUED",
+        issued="just now",
+    ))
+    write_audit("VOUCHER_ISSUE", "voucher", new_id, note=f"{amount}")
+    db.session.commit()
     return redirect(url_for("provider_vouchers"))
 
 
 @app.route("/provider/vouchers/export.csv")
+@require("voucher:export")
 def export_vouchers_csv():
     import csv
     import io
 
+    from flask import Response
+
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["ID", "Pax", "PNR", "Ticket", "Reason", "Amount", "Currency", "Payment", "Policy", "Status"])
-    for v in VOUCHERS:
-        writer.writerow([v["id"], v["pax"], v["pnr"], v["ticket"], v["reason"], v["amount"], v["currency"], v["payment"], v["policy"], v["status"]])
-
-    from flask import Response
+    for v in tenant_q(Voucher).order_by(Voucher.created_at.desc()).all():
+        writer.writerow([v.id, v.pax, v.pnr, v.ticket, v.reason, v.amount, v.currency, v.payment, v.policy, v.status])
+    write_audit("VOUCHER_EXPORT", "voucher", "ALL")
+    db.session.commit()
     return Response(
         buf.getvalue(),
         mimetype="text/csv",
@@ -330,20 +778,7 @@ def export_vouchers_csv():
     )
 
 
-REASON_DIST = [
-    {"label": "Duplicate booking", "pct": 32, "color": "bar-rose"},
-    {"label": "Fare rule violation", "pct": 24, "color": "bar-amber"},
-    {"label": "Time limit expiry", "pct": 18, "color": "bar-indigo"},
-    {"label": "Schedule change", "pct": 14, "color": "bar-sky"},
-    {"label": "Other", "pct": 12, "color": "bar-slate"},
-]
-
-DRILLDOWN_RULES = [
-    {"code": "FXR-103", "tone": "amber", "text": "Fare basis mismatch · 4 PNRs · est $1,600"},
-    {"code": "TKT-204", "tone": "rose", "text": "Ticketing time limit expired · 2 PNRs · est $800"},
-    {"code": "NCP-011", "tone": "indigo", "text": "Name change post-ticketing · 1 PNR · est $320"},
-]
-
+# --- Routes: audits ------------------------------------------------------
 
 @app.route("/provider/audits")
 def provider_audits():
@@ -352,14 +787,15 @@ def provider_audits():
     sort_health = request.args.get("sortHealth") == "1"
     drill = request.args.get("drill")
 
+    agencies = all_agencies()
     rows = []
-    for a in AGENCIES:
-        if filter_agency != "ALL" and a["name"] != filter_agency:
+    for a in agencies:
+        if filter_agency != "ALL" and a.name != filter_agency:
             continue
-        adms = a["month_adms"]
+        adms = a.month_adms
         health = "AT-RISK" if adms > 10 else ("WATCH" if adms > 3 else "HEALTHY")
         rows.append({
-            "agency": a["name"], "pcc": a["pcc"], "adms": adms,
+            "agency": a.name, "pcc": a.pcc, "adms": adms,
             "saved": adms * 1800 + 4000, "lost": adms * 400,
             "health": health, "trend": "↑" if adms > 5 else "↓",
         })
@@ -368,26 +804,25 @@ def provider_audits():
         rows.sort(key=lambda r: order[r["health"]])
 
     return render_provider(
-        "provider/audits.html",
-        "AUDITS",
-        range=range_,
-        filter_agency=filter_agency,
-        sort_health=sort_health,
-        agency_names=[a["name"] for a in AGENCIES],
-        rows=rows,
-        reason_dist=REASON_DIST,
-        drill=drill,
-        drilldown_rules=DRILLDOWN_RULES,
+        "provider/audits.html", "AUDITS",
+        range=range_, filter_agency=filter_agency, sort_health=sort_health,
+        agency_names=[a.name for a in agencies],
+        rows=rows, reason_dist=REASON_DIST, drill=drill, drilldown_rules=DRILLDOWN_RULES,
     )
 
 
+# --- Routes: escalations -------------------------------------------------
+
 @app.route("/provider/escalations")
 def provider_escalations():
+    rows = [
+        escalation_to_dict(e)
+        for e in tenant_q(Escalation).order_by(Escalation.created_at.desc()).all()
+    ]
     return render_provider(
-        "provider/escalations.html",
-        "ESCALATIONS",
-        escalations=ESCALATIONS,
-        agency_names=[a["name"] for a in AGENCIES],
+        "provider/escalations.html", "ESCALATIONS",
+        escalations=rows,
+        agency_names=[a.name for a in all_agencies()],
         escalate_id=request.args.get("escalate"),
         escalate_to=request.args.get("to"),
         show_new=request.args.get("new") == "1",
@@ -396,100 +831,235 @@ def provider_escalations():
 
 @app.route("/provider/escalations/new", methods=["POST"])
 def new_escalation():
-    ESCALATIONS.insert(0, {
-        "id": f"ESC-{random.randint(7000, 7999)}",
-        "agency": request.form.get("agency") or "All agencies",
-        "pnr": (request.form.get("pnr") or "—").upper(),
-        "subject": request.form.get("subject") or "",
-        "level": "L1",
-        "priority": request.form.get("priority") or "MED",
-        "opened": "just now",
-        "status": "OPEN",
-        "sla": "24 hr left",
-    })
+    new_id = f"ESC-{random.randint(7000, 7999)}"
+    db.session.add(Escalation(
+        id=new_id,
+        provider_id=current_provider_id(),
+        agency=request.form.get("agency") or "All agencies",
+        pnr=(request.form.get("pnr") or "—").upper(),
+        subject=request.form.get("subject") or "",
+        level="L1",
+        priority=request.form.get("priority") or "MED",
+        opened="just now",
+        status="OPEN",
+        sla="24 hr left",
+    ))
+    write_audit("ESCALATION_CREATE", "escalation", new_id)
+    db.session.commit()
     return redirect(url_for("provider_escalations"))
 
 
 @app.route("/provider/escalations/<esc_id>/escalate", methods=["POST"])
 def escalate_escalation(esc_id):
     to = request.form.get("to") or "L2"
-    for e in ESCALATIONS:
-        if e["id"] == esc_id:
-            e["status"] = "PENDING"
-            e["level"] = to
-            break
+    needed = "escalation:to_vendor" if to == "VENDOR" else "escalation:to_l2"
+    if not can(current_user, needed):
+        return render_template("auth/403.html"), 403
+    e = get_owned_or_404(Escalation, esc_id)
+    e.status = "PENDING"
+    e.level = to
+    write_audit("ESCALATION_ESCALATE", "escalation", e.id, note=f"→{to}")
+    db.session.commit()
     return redirect(url_for("provider_escalations"))
 
 
 @app.route("/provider/escalations/<esc_id>/resolve", methods=["POST"])
+@require("escalation:resolve")
 def resolve_escalation(esc_id):
-    for e in ESCALATIONS:
-        if e["id"] == esc_id:
-            e["status"] = "RESOLVED"
-            break
+    e = get_owned_or_404(Escalation, esc_id)
+    e.status = "RESOLVED"
+    write_audit("ESCALATION_RESOLVE", "escalation", e.id)
+    db.session.commit()
     return redirect(url_for("provider_escalations"))
 
 
+# --- Routes: policies, emulate, learning ---------------------------------
+
 @app.route("/provider/policies")
 def provider_policies():
-    return render_provider("provider/policies.html", "POLICIES", docs=POLICY_DOCS)
+    docs = [{"cat": d.cat, "name": d.name, "v": d.v} for d in PolicyDoc.query.all()]
+    return render_provider("provider/policies.html", "POLICIES", docs=docs)
 
 
 @app.route("/provider/emulate")
+@require("emulate:use")
 def provider_emulate():
     return render_provider("provider/emulate.html", "EMULATE")
 
 
-THREADS = [
-    {
-        "id": "T-91", "agency": "Skylink Travel", "agent": "Rumbi", "unread": 2,
-        "last": "Need help on a DOCS SSR reject",
-        "messages": [
-            {"from": "AGENT", "text": "DOCS SSR keeps rejecting — passport name has hyphen", "t": "14:01"},
-            {"from": "AGENT", "text": "Need help on a DOCS SSR reject", "t": "14:02"},
-        ],
-    },
-    {
-        "id": "T-90", "agency": "Voyage Africa", "agent": "Tendai", "unread": 0,
-        "last": "Voucher not received by pax",
-        "messages": [
-            {"from": "AGENT", "text": "Voucher VCH-44021 not received by pax", "t": "13:30"},
-            {"from": "OPS", "text": "Resent — please confirm", "t": "13:35"},
-        ],
-    },
-]
+@app.route("/provider/audit-log")
+@require("user:invite")  # ADMIN-only (same gate as user invite)
+def provider_audit_log():
+    """Filterable view over the AuditLog table (own tenant only)."""
+    action_filter = request.args.get("action", "").strip().upper()
+    days = int(request.args.get("days", 7))
+    actor_id = request.args.get("actor", "").strip()
 
+    q = tenant_q(AuditLog).order_by(AuditLog.created_at.desc())
+    if action_filter:
+        q = q.filter(AuditLog.action.ilike(f"%{action_filter}%"))
+    if actor_id:
+        q = q.filter(AuditLog.actor_user_id == actor_id)
+    if days > 0:
+        q = q.filter(AuditLog.created_at >= datetime.utcnow() - timedelta(days=days))
+    rows = q.limit(500).all()
+
+    actor_map = {u.id: u for u in tenant_q(User).all()}
+    actions = [a[0] for a in db.session.query(AuditLog.action).filter_by(
+        provider_id=current_provider_id()
+    ).distinct().all()]
+
+    return render_provider(
+        "provider/audit_log.html", "AUDIT_LOG",
+        rows=rows, actors=list(actor_map.values()), actor_map=actor_map,
+        actions=sorted(actions), action_filter=action_filter,
+        days=days, actor_filter=actor_id,
+    )
+
+
+@app.route("/admin/reset-demo", methods=["POST"])
+@require("user:invite")  # ADMIN-only
+def admin_reset_demo():
+    from seed import seed_all
+    seed_all()
+    flash("Demo data has been reset to the clean baseline.", "success")
+    # After reseed our own user row is regenerated — log out so the session
+    # gets re-established cleanly.
+    logout_user()
+    return redirect(url_for("login"))
+
+
+@app.route("/admin/inject-event", methods=["POST"])
+@require("user:invite")  # ADMIN-only
+def admin_inject_event():
+    """Fire one stream event on demand — handy mid-pitch."""
+    from stream import run_one_tick
+    desc = run_one_tick(app)
+    flash(f"Event injected: {desc}" if desc else "No active agencies — nothing to inject.", "info")
+    return redirect(request.referrer or url_for("provider_dashboard"))
+
+
+@app.route("/provider/live-feed.json")
+def provider_live_feed():
+    """JSON feed consumed by the dashboard's Live Activity card.
+
+    Returns the 8 most recent audit-log rows for this tenant. Polled by
+    JS every 10s. CSRF not required (read-only, requires session via
+    the before_request guard).
+    """
+    if not current_user.is_authenticated or not current_user.is_provider_staff():
+        return jsonify({"events": []}), 403
+    rows = (
+        tenant_q(AuditLog)
+        .order_by(AuditLog.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    return jsonify({
+        "events": [
+            {
+                "id": r.id,
+                "action": r.action,
+                "target": f"{r.target_type}:{r.target_id}",
+                "note": r.note or "",
+                "when": humanize(r.created_at),
+                "iso": r.created_at.isoformat() if r.created_at else None,
+                "is_system": r.actor_user_id is None,
+            }
+            for r in rows
+        ],
+        "now": datetime.utcnow().isoformat(),
+    })
+
+
+@app.route("/provider/learning")
+def provider_learning():
+    modules = [{"name": m.name, "progress": m.progress, "badge": m.badge}
+               for m in LearningModule.query.all()]
+    return render_provider("provider/learning.html", "LEARNING", modules=modules)
+
+
+# --- Routes: respond -----------------------------------------------------
 
 @app.route("/provider/respond")
 def provider_respond():
-    active_id = request.args.get("thread", THREADS[0]["id"])
-    active = next((t for t in THREADS if t["id"] == active_id), THREADS[0])
-    return render_provider("provider/respond.html", "RESPOND", threads=THREADS, active=active)
+    threads = tenant_q(Thread).order_by(Thread.created_at.desc()).all()
+    if not threads:
+        return render_provider("provider/respond.html", "RESPOND", threads=[], active=None)
+    active_id = request.args.get("thread", threads[0].id)
+    active_obj = next((t for t in threads if t.id == active_id), threads[0])
+    return render_provider(
+        "provider/respond.html", "RESPOND",
+        threads=[thread_to_dict(t) for t in threads],
+        active=thread_to_dict(active_obj),
+    )
 
 
 @app.route("/provider/respond/<thread_id>/reply", methods=["POST"])
 def reply_thread(thread_id):
     text = request.form.get("text", "").strip()
-    if text:
-        for t in THREADS:
-            if t["id"] == thread_id:
-                t["messages"].append({"from": "OPS", "text": text, "t": "now"})
-                break
+    if not text:
+        return redirect(url_for("provider_respond"))
+    t = get_owned_or_404(Thread, thread_id)
+    db.session.add(Message(thread_id=t.id, sender="OPS", text=text, t="now"))
+    t.last = text
+    write_audit("THREAD_REPLY", "thread", t.id)
+    db.session.commit()
     return redirect(url_for("provider_respond"))
 
 
-LEARNING_MODULES = [
-    {"name": "NCP Validator Fundamentals", "progress": 100, "badge": "✓ Done"},
-    {"name": "DOCS SSR Edge Cases", "progress": 75, "badge": "In progress"},
-    {"name": "NDC Order Management", "progress": 60, "badge": "In progress"},
-    {"name": "ADM Dispute Mastery", "progress": 0, "badge": "Not started"},
-]
+# --- Health check (for hosts) --------------------------------------------
+
+@app.route("/healthz")
+def healthz():
+    return {"status": "ok"}, 200
 
 
-@app.route("/provider/learning")
-def provider_learning():
-    return render_provider("provider/learning.html", "LEARNING", modules=LEARNING_MODULES)
+# --- CLI commands --------------------------------------------------------
+
+@app.cli.command("seed")
+def cli_seed():
+    """Populate the database with the standard demo state."""
+    from seed import seed_all
+    seed_all()
+    print("Seeded demo data: 3 providers, 5 users, 6 agencies, 2 vouchers, 3 escalations.")
+
+
+@app.cli.command("reset-demo")
+def cli_reset_demo():
+    """Wipe and re-seed the database in one command."""
+    from seed import reset_demo
+    reset_demo()
+    print("Demo data reset.")
+
+
+# --- Background event stream (Section 7) ---------------------------------
+
+def _maybe_start_stream():
+    """Start the simulated GDS event stream.
+
+    Two guards apply:
+    1. In Flask dev mode the reloader runs the app twice (parent
+       watcher + child runner). Only start in the child to avoid two
+       schedulers.
+    2. Don't start during CLI commands (``flask seed`` etc.) — those
+       run with a different invocation path and don't need a ticker.
+    """
+    if os.environ.get("FLASK_RUN_FROM_CLI") == "true":
+        return
+    # In dev, the reloader's child sets WERKZEUG_RUN_MAIN=true.
+    if app.config["DEBUG"] and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    from stream import start_event_stream
+    start_event_stream(app)
+
+
+_maybe_start_stream()
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=int(os.environ.get("PORT", 5050)))
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5050)),
+        debug=app.config["DEBUG"],
+    )

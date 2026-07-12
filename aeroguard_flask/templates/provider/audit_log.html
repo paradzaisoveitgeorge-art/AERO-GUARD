@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}AERO-GUARD &middot; Audit Log{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Audit Log</h1>
+    <p class="page-header__subtitle">
+      Append-only history of every state change in your tenancy &middot;
+      filtered to <strong>{{ current_provider.name if current_provider else '—' }}</strong>
+    </p>
+  </div>
+</div>
+
+<form method="get" class="card" style="display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
+  <label style="font-size:12px; color: var(--slate-400); display:flex; flex-direction:column; gap:4px;">
+    Action contains
+    <select name="action" style="background: var(--slate-800); border: 1px solid var(--slate-700); border-radius: 4px; padding: 6px 10px; color: var(--slate-100); min-width: 220px;">
+      <option value="">All actions</option>
+      {% for a in actions %}<option value="{{ a }}" {% if a == action_filter %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+  </label>
+  <label style="font-size:12px; color: var(--slate-400); display:flex; flex-direction:column; gap:4px;">
+    Actor
+    <select name="actor" style="background: var(--slate-800); border: 1px solid var(--slate-700); border-radius: 4px; padding: 6px 10px; color: var(--slate-100); min-width: 200px;">
+      <option value="">All users</option>
+      {% for u in actors %}<option value="{{ u.id }}" {% if u.id == actor_filter %}selected{% endif %}>{{ u.name }} ({{ u.role }})</option>{% endfor %}
+    </select>
+  </label>
+  <label style="font-size:12px; color: var(--slate-400); display:flex; flex-direction:column; gap:4px;">
+    Window
+    <select name="days" style="background: var(--slate-800); border: 1px solid var(--slate-700); border-radius: 4px; padding: 6px 10px; color: var(--slate-100);">
+      {% for d in [1, 7, 30, 90, 0] %}
+      <option value="{{ d }}" {% if d == days %}selected{% endif %}>{% if d == 0 %}all time{% else %}last {{ d }} day{{ 's' if d != 1 }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="btn btn-primary">Apply</button>
+  <a class="btn btn-ghost" href="{{ url_for('provider_audit_log') }}">Clear</a>
+</form>
+
+<div class="card" style="margin-top: 16px;">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Target</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td style="font-family: var(--font-mono); font-size: 12px; color: var(--slate-300);" title="{{ r.created_at }} UTC">
+          {{ humanize(r.created_at) }}
+        </td>
+        <td>
+          {% set u = actor_map.get(r.actor_user_id) %}
+          {% if u %}{{ u.name }} <span style="color: var(--slate-500); font-size:11px;">({{ u.role }})</span>{% else %}<em style="color: var(--slate-500);">system</em>{% endif %}
+        </td>
+        <td><span class="gds-chip">{{ r.action }}</span></td>
+        <td style="font-family: var(--font-mono); font-size: 12px;">
+          <span style="color: var(--slate-500);">{{ r.target_type }}</span>:{{ r.target_id }}
+        </td>
+        <td style="color: var(--slate-400); font-size: 12px;">{{ r.note or '' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="color: var(--slate-500); text-align:center; padding: 20px;">No audit entries match your filters.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if rows|length == 500 %}
+  <p style="color: var(--slate-500); font-size: 11px; margin-top: 12px;">
+    Showing the most recent 500 entries. Narrow the window or filter by action to see older history.
+  </p>
+  {% endif %}
+</div>
+
+{% endblock %}

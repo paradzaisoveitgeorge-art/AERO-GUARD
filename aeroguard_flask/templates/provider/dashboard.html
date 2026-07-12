@@ -4,13 +4,32 @@
 
 <div class="hero">
   <div class="hero__body">
-    <div class="hero__top">
-      <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
-           alt="AERO-GUARD" class="hero__logo-img" />
-      <div>
-        <h1 class="hero__title">Welcome to AERO-GUARD, Soviet</h1>
-        <p class="hero__subtitle">Active Revenue Sentinel &middot; MFA verified &middot; session 14:02</p>
+    <div class="hero__top" style="justify-content: space-between; align-items: flex-start;">
+      <div style="display:flex; gap:14px; align-items:center;">
+        <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+             alt="AERO-GUARD" class="hero__logo-img" />
+        <div>
+          <h1 class="hero__title">Welcome to AERO-GUARD, {{ current_user.name.split()[0] if current_user.is_authenticated else 'Operator' }}</h1>
+          <p class="hero__subtitle">
+            {{ current_user.role if current_user.is_authenticated else '—' }}
+            {% if current_user.mfa %}&middot; MFA verified{% endif %}
+            {% if current_user.last_login_at %}&middot; last login {{ humanize(current_user.last_login_at) }}{% endif %}
+          </p>
+        </div>
       </div>
+      {% if can('user:invite') %}
+      <div style="display:flex; gap:8px;">
+        <form method="post" action="{{ url_for('admin_inject_event') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-ghost" title="Inject one simulated GDS event now">&#9889; Inject demo event</button>
+        </form>
+        <form method="post" action="{{ url_for('admin_reset_demo') }}"
+              onsubmit="return confirm('Wipe ALL tenants and reseed the standard demo state? You will be signed out.');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="btn btn-ghost" title="Reset all tenants to the demo baseline">&#x21bb; Reset demo data</button>
+        </form>
+      </div>
+      {% endif %}
     </div>
     <p class="hero__tag">Compliance in Motion, Profit in Motive</p>
     <div class="stat-grid">
@@ -64,6 +83,19 @@
   </div>
 
   <div class="card">
+    <div class="card__header" style="display:flex; align-items:center; justify-content:space-between;">
+      <div>
+        <div class="card__title">Live Activity</div>
+        <div class="card__subtitle">Simulated GDS event stream &middot; auto-refreshing</div>
+      </div>
+      <span class="live-pulse" title="Live"><span class="live-dot"></span>LIVE</span>
+    </div>
+    <ul id="live-feed" class="live-list">
+      <li class="live-empty">Waiting for events&hellip;</li>
+    </ul>
+  </div>
+
+  <div class="card">
     <div class="card__header">
       <div class="card__title">Pending Issues</div>
       <div class="card__subtitle">Awaiting helpdesk action</div>
@@ -92,9 +124,11 @@
     <a class="quick-action" href="{{ url_for('provider_agencies') }}">
       <span class="quick-action__icon">&#127970;</span><span>Provision Agency</span>
     </a>
+    {% if can('emulate:use') %}
     <a class="quick-action" href="{{ url_for('provider_emulate') }}">
       <span class="quick-action__icon">&#8989;</span><span>Emulate PCC</span>
     </a>
+    {% endif %}
     <a class="quick-action" href="{{ url_for('provider_vouchers') }}">
       <span class="quick-action__icon">&#127913;</span><span>Issue Voucher</span>
     </a>
@@ -138,5 +172,44 @@ function quickAudit() {
   const pnr = window.prompt("Enter PNR for quick compliance check");
   if (pnr) alert(`Quick audit ${pnr.toUpperCase()} — compliant ✓`);
 }
+
+(function liveFeed() {
+  const list = document.getElementById("live-feed");
+  if (!list) return;
+  const seen = new Set();
+  let firstPaint = true;
+
+  function fmtAction(a) {
+    return a.replace(/^STREAM_/, "").replace(/_/g, " ").toLowerCase()
+            .replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch("{{ url_for('provider_live_feed') }}");
+      if (!r.ok) return;
+      const data = await r.json();
+      const events = data.events || [];
+      if (events.length === 0) return;
+      if (firstPaint) { list.innerHTML = ""; firstPaint = false; }
+      events.reverse().forEach(ev => {
+        if (seen.has(ev.id)) return;
+        seen.add(ev.id);
+        const li = document.createElement("li");
+        li.className = "live-item" + (ev.is_system ? " live-item--system" : "");
+        li.innerHTML = `
+          <div class="live-item__top">
+            <span class="live-item__action">${fmtAction(ev.action)}</span>
+            <span class="live-item__when">${ev.when}</span>
+          </div>
+          <div class="live-item__note">${ev.note ? ev.note : ev.target}</div>`;
+        list.prepend(li);
+        while (list.childElementCount > 8) list.removeChild(list.lastChild);
+      });
+    } catch (e) { /* ignore transient network errors */ }
+  }
+  poll();
+  setInterval(poll, 10000);
+})();
 </script>
 {% endblock %}

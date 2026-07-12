@@ -39,6 +39,7 @@
         {% endfor %}
       </div>
       <form class="chat-pane__input" method="post" action="{{ url_for('reply_thread', thread_id=active.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input name="text" placeholder="Type a reply…" required />
         <button type="submit">Send</button>
       </form>
@@ -50,7 +51,9 @@
       <button type="button" class="tool-btn" onclick="alert('Demo video link sent')">&#128249; Send demo video</button>
       <button type="button" class="tool-btn" onclick="alert('Dialing…')">&#128222; Call back agent</button>
       <button type="button" class="tool-btn" onclick="alert('Transcript emailed')">&#128231; Email transcript</button>
+      {% if can('emulate:use') %}
       <a class="tool-btn" style="text-decoration:none;" href="{{ url_for('provider_emulate') }}">&#8987; Emulate their PCC</a>
+      {% endif %}
       <a class="tool-btn" style="text-decoration:none;" href="{{ url_for('provider_escalations') }}">&#11014; Escalate to L2</a>
     </div>
   </div>

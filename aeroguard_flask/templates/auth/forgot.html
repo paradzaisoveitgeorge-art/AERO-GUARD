@@ -1,0 +1,29 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Forgot password · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Reset your password</h1>
+  <p class="subtitle">We'll generate a reset link below. (Email sending arrives later in the MVP.)</p>
+
+  {% if submitted %}
+    <div class="alert alert-info">
+      If an account exists for that email, a reset link has been generated.
+    </div>
+    {% if reset_link %}
+      <p style="font-size:12px; color:var(--auth-muted); margin:14px 0 6px;">
+        Demo mode — paste this link in your browser to set a new password (valid 2 hours):
+      </p>
+      <div class="token-box">{{ reset_link }}</div>
+    {% endif %}
+  {% else %}
+    <form method="post" action="{{ url_for('forgot') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required autofocus />
+      </div>
+      <button class="btn" type="submit">Generate reset link</button>
+    </form>
+  {% endif %}
+
+  <div class="footer-link"><a href="{{ url_for('login') }}">← Back to sign in</a></div>
+{% endblock %}
