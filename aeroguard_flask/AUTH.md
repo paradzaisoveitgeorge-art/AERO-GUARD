@@ -42,7 +42,7 @@ pitches, easy to change later.
 
 | Role | Email | Password | What they see |
 |---|---|---|---|
-| Provider Admin | `soviet@aero-guard.io` | `aeroguard` | Full provider console — manage agencies, users, vouchers, audits. |
+| Provider Admin | `soviet@aero-guard.io` | `aeroguard` | Full provider console — manage agencies, users, audits. |
 | Provider L2 | `tariro@aero-guard.io` | `aeroguard` | Same console (role enforcement = Section 4). |
 | Provider L1 | `kelvin@skyops.africa` | `aeroguard` | Same console. |
 | Provider L1 (inactive) | `amina@horizon.partners` | `aeroguard` | **Cannot log in** — account disabled. Used to demo the disable/enable flow. |

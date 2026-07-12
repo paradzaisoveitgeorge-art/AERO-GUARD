@@ -37,7 +37,7 @@ Three rules:
 |---|---|---|
 | **ADMIN** | Provider admins (Soviet, Tariro) | Full control over their provider. Provisioning, billing-like actions, user lifecycle. |
 | **L2** | Senior helpdesk | Operational power — suspend agencies, escalate to vendors, resolve cases, emulate PCC. No provisioning, no user lifecycle. |
-| **L1** | Junior helpdesk | Read-only on most things. Can reply to clients, create escalations, issue *small* vouchers. |
+| **L1** | Junior helpdesk | Read-only on most things. Can reply to clients and create escalations. |
 | **CONSULTANT** | Travel agents using AERO-GUARD inside Smartpoint | Only sees `/` (the consultant terminal). 403 on anything under `/provider/*`. |
 
 ---
@@ -61,19 +61,12 @@ Legend: ✅ allowed · ❌ blocked
 | **Invite helpdesk user** | ✅ | ❌ | ❌ |
 | Enable / disable user | ✅ | ❌ | ❌ |
 | **Remove user** | ✅ | ❌ | ❌ |
-| Issue voucher (any amount) | ✅ | ✅ | ✅* |
-| Export vouchers CSV | ✅ | ✅ | ❌ |
 | Create escalation | ✅ | ✅ | ✅ |
 | Escalate to L2 | ✅ | ✅ | ✅ |
 | **Escalate to vendor** | ✅ | ✅ | ❌ |
 | **Resolve escalation** | ✅ | ✅ | ❌ |
 | Reply to client thread | ✅ | ✅ | ✅ |
 | **Emulate PCC** | ✅ | ✅ | ❌ |
-
-> *L1 voucher cap: **$500** (defined as `L1_VOUCHER_CAP` in
-> `permissions.py`). A voucher over the cap submitted by L1 is
-> rejected with 403 and a banner explains why. Above-cap requests need
-> L2 or ADMIN to issue.
 
 ---
 
@@ -96,16 +89,15 @@ the friendly 403 page renders.
 
 ### b) Data-dependent — call `can(...)` inline
 
-Used when the answer depends on the request body, like the L1 voucher
-cap:
+Use this when a route has a rule the decorator can't express — e.g.
+a permission that depends on the request body or a related row:
 
 ```python
-@app.route("/provider/vouchers/issue", methods=["POST"])
-def issue_voucher():
-    amount = float(request.form.get("amount") or 0)
-    if not can(current_user, "voucher:issue", amount=amount):
+@app.route("/provider/agencies/<id>/delete", methods=["POST"])
+def delete_agency(id):
+    if not can(current_user, "agency:delete"):
         return render_template("auth/403.html"), 403
-    # ... write voucher
+    # ... actually delete
 ```
 
 ### c) Hide UI before they click — `can(...)` in templates
@@ -152,8 +144,8 @@ That's it. Three lines in three files.
 
 ## 6. Adding a new role
 
-Say you want a "BILLING" role that can do voucher-related things plus
-view audits but nothing else.
+Say you want a "BILLING" role that can view audits and reply to
+client threads but nothing else.
 
 1. Add a constant near the top of `permissions.py`:
    ```python
@@ -174,7 +166,6 @@ The 403 page, the topnav, and the gates pick it up automatically.
 | Action names like `agency:delete` not bare booleans | Future-proof. We can later have `agency:delete:own` vs `agency:delete:any` without renaming everything. |
 | Permission matrix in **one** dictionary | Auditing "who can do what" is a single file read. No grep across templates. |
 | **Server re-validates** even after UI hides a button | UI is for usability, not security. Anyone with curl can post to `/provider/agencies/.../delete`; only the server check blocks it. |
-| L1 voucher cap encoded in `can()`, not the route | Same logic available to the template — we can show the cap warning in the form *before* L1 tries to submit. |
 | Friendly 403 template, not raw Flask abort screen | Consistent brand experience, plus an easy back-link. |
 | `CONSULTANT` role can't see `/provider/*` at all | Defence in depth — the section-3 guard catches them before any per-action permission check runs. |
 

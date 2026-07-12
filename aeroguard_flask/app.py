@@ -2,7 +2,7 @@
 
 Section 2 of the MVP build introduces a real SQLite database (via
 SQLAlchemy + Flask-Migrate). Every entity that used to live in an
-in-memory list (agencies, vouchers, escalations, threads, etc.) now
+in-memory list (agencies, escalations, threads, etc.) now
 persists to disk. Use the CLI commands at the bottom of this file to
 seed and reset demo data:
 
@@ -57,10 +57,9 @@ from models import (
     Provider,
     Thread,
     User,
-    Voucher,
     db,
 )
-from permissions import L1_VOUCHER_CAP, can, require
+from permissions import can, require
 
 # Load .env if present (no-op in production where vars come from the host)
 load_dotenv()
@@ -132,8 +131,7 @@ def inject_user():
     return {
         "current_user": current_user,
         "current_provider": provider,
-        "can": lambda action, amount=None: can(current_user, action, amount=amount),
-        "L1_VOUCHER_CAP": L1_VOUCHER_CAP,
+        "can": lambda action: can(current_user, action),
         "humanize": humanize,
         "humanize_sla": humanize_sla,
     }
@@ -172,7 +170,6 @@ NAV_GROUPS = [
     {"label": "OPERATIONAL CONTROL", "items": [
         {"key": "AGENCIES", "label": "Agency Provisioning", "icon": "\U0001f3e2", "endpoint": "provider_agencies"},
         {"key": "USERS", "label": "Helpdesk Users", "icon": "\U0001f465", "endpoint": "provider_users"},
-        {"key": "VOUCHERS", "label": "Vouchers", "icon": "\U0001f39f", "endpoint": "provider_vouchers"},
     ]},
     {"label": "INTELLIGENCE", "items": [
         {"key": "AUDITS", "label": "Agency ADM Audits", "icon": "\U0001f4ca", "endpoint": "provider_audits"},
@@ -191,13 +188,9 @@ NAV_GROUPS = [
 
 ROLE_HINTS = {
     "L1": "Ticket support, view dashboards, respond to clients",
-    "L2": "Above + Emulate PCC, escalate to vendors, manage vouchers",
+    "L2": "Above + Emulate PCC, escalate to vendors",
     "ADMIN": "Full control: provision agencies, manage users, audit trail",
 }
-
-VOUCHER_REASONS = ["Schedule change >4h", "Flight cancellation", "ADM dispute", "Goodwill", "IROPS rebooking"]
-VOUCHER_POLICIES = ["IROPS-A", "IROPS-B", "GOODWILL", "ADM-OFFSET", "LOYALTY"]
-VOUCHER_PAYMENTS = ["REFUND", "VOUCHER", "CREDIT NOTE", "CASH", "TRANSFER"]
 
 REASON_DIST = [
     {"label": "Duplicate booking",     "pct": 32, "color": "bar-rose"},
@@ -213,16 +206,10 @@ DRILLDOWN_RULES = [
     {"code": "NCP-011", "tone": "indigo", "text": "Name change post-ticketing · 1 PNR · est $320"},
 ]
 
-SMARTPOINT_VOUCHERS = [
-    {"id": "VCH-44021", "tier": "Platinum", "pax": "DEMHE/PATRICK",   "amount": 850, "currency": "USD", "status": "Active",   "airline": "QR", "expires": "31DEC25", "policy_ref": "QR-PLT-2024-A"},
-    {"id": "VCH-44018", "tier": "Gold",     "pax": "NCUBE/THANDIWE",  "amount": 420, "currency": "USD", "status": "Pending",  "airline": "FN", "expires": "15NOV25", "policy_ref": "FN-GLD-2024-B"},
-    {"id": "VCH-44012", "tier": "Silver",   "pax": "MOYO/TANAKA",     "amount": 180, "currency": "USD", "status": "Redeemed", "airline": "FN", "expires": "01JUL25", "policy_ref": "FN-SLV-2024-C"},
-]
-
 TUTORIALS = [
     {"id": "passport-scan", "title": "Passport Auto-Fill & MRZ Scan",  "blurb": "Drop a passport image — AERO-GUARD reads the MRZ, validates ICAO 9303, and pushes DOCS SSR to the PNR. Zero spelling errors.", "duration": "1:42", "tag": "DOCS · OCR"},
     {"id": "pnr-validator", "title": "Live PNR Rule Validator",        "blurb": "Watch AERO-GUARD intercept a min-stay breach mid-pricing and suggest the compliant fare basis before ticketing.",         "duration": "2:15", "tag": "ADM · Rules"},
-    {"id": "adm-watch",     "title": "ADM Watch & Voucher Issuance",   "blurb": "End-to-end demo: catch a tax-code violation, issue a goodwill voucher, and audit the trail from the helpdesk console.",   "duration": "2:58", "tag": "Vouchers · Audit"},
+    {"id": "adm-watch",     "title": "ADM Watch & Audit Trail",        "blurb": "End-to-end demo: catch a tax-code violation, resolve it, and audit the trail from the helpdesk console.",                 "duration": "2:58", "tag": "ADM · Audit"},
 ]
 
 
@@ -293,7 +280,7 @@ def tenant_q(model):
     """Return ``model.query`` filtered to the current user's provider.
 
     Use for every list/search endpoint that touches a tenant-scoped table
-    (Agency, User, Voucher, Escalation, Thread). Catalog tables
+    (Agency, User, Escalation, Thread). Catalog tables
     (PolicyDoc, LearningModule, Alert, PendingIssue) are shared and
     should query the model directly.
     """
@@ -350,16 +337,6 @@ def agency_to_dict(a: Agency) -> dict:
         "month_adms": a.month_adms,
         "last_active": humanize(a.updated_at) if a.status != "PROVISIONING" else "—",
         "policy_level": a.policy_level, "admin_email": a.admin_email,
-    }
-
-
-def voucher_to_dict(v: Voucher) -> dict:
-    return {
-        "id": v.id, "pax": v.pax, "pnr": v.pnr, "ticket": v.ticket,
-        "reason": v.reason, "amount": v.amount, "currency": v.currency,
-        "payment": v.payment, "card": v.card, "policy": v.policy,
-        "status": v.status,
-        "issued": humanize(v.created_at),
     }
 
 
@@ -496,7 +473,7 @@ def reset_password(token: str):
 def smartpoint_demo():
     if current_user.is_provider_staff():
         return redirect(url_for("provider_dashboard"))
-    return render_template("smartpoint.html", vouchers=SMARTPOINT_VOUCHERS, tutorials=TUTORIALS)
+    return render_template("smartpoint.html", tutorials=TUTORIALS)
 
 
 # --- Routes: provider dashboard -------------------------------------------
@@ -710,72 +687,6 @@ def remove_user(user_id):
     db.session.delete(u)
     db.session.commit()
     return redirect(request.referrer or url_for("provider_users"))
-
-
-# --- Routes: vouchers ----------------------------------------------------
-
-@app.route("/provider/vouchers")
-def provider_vouchers():
-    search = request.args.get("q", "").strip().upper()
-    q = tenant_q(Voucher)
-    if search:
-        like = f"%{search}%"
-        q = q.filter(db.or_(Voucher.id.ilike(like), Voucher.pnr.ilike(like), Voucher.pax.ilike(like)))
-    rows = [voucher_to_dict(v) for v in q.order_by(Voucher.created_at.desc()).all()]
-    return render_provider(
-        "provider/vouchers.html", "VOUCHERS",
-        vouchers=rows, search=request.args.get("q", ""),
-        reasons=VOUCHER_REASONS, policies=VOUCHER_POLICIES,
-        payments=VOUCHER_PAYMENTS, currencies=CURRENCIES,
-    )
-
-
-@app.route("/provider/vouchers/issue", methods=["POST"])
-def issue_voucher():
-    amount = float(request.form.get("amount") or 0)
-    if not can(current_user, "voucher:issue", amount=amount):
-        return render_template("auth/403.html"), 403
-    new_id = f"VCH-{random.randint(10000, 99999)}"
-    db.session.add(Voucher(
-        id=new_id,
-        provider_id=current_provider_id(),
-        pax=(request.form.get("pax") or "").upper(),
-        pnr=(request.form.get("pnr") or "").upper(),
-        ticket=request.form.get("ticket") or "",
-        reason=request.form.get("reason") or "",
-        amount=amount,
-        currency=request.form.get("currency") or "USD",
-        payment=request.form.get("payment") or "REFUND",
-        card=request.form.get("card") or "—",
-        policy=request.form.get("policy") or "GOODWILL",
-        status="ISSUED",
-        issued="just now",
-    ))
-    write_audit("VOUCHER_ISSUE", "voucher", new_id, note=f"{amount}")
-    db.session.commit()
-    return redirect(url_for("provider_vouchers"))
-
-
-@app.route("/provider/vouchers/export.csv")
-@require("voucher:export")
-def export_vouchers_csv():
-    import csv
-    import io
-
-    from flask import Response
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["ID", "Pax", "PNR", "Ticket", "Reason", "Amount", "Currency", "Payment", "Policy", "Status"])
-    for v in tenant_q(Voucher).order_by(Voucher.created_at.desc()).all():
-        writer.writerow([v.id, v.pax, v.pnr, v.ticket, v.reason, v.amount, v.currency, v.payment, v.policy, v.status])
-    write_audit("VOUCHER_EXPORT", "voucher", "ALL")
-    db.session.commit()
-    return Response(
-        buf.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=vouchers.csv"},
-    )
 
 
 # --- Routes: audits ------------------------------------------------------
@@ -1022,7 +933,7 @@ def cli_seed():
     """Populate the database with the standard demo state."""
     from seed import seed_all
     seed_all()
-    print("Seeded demo data: 3 providers, 5 users, 6 agencies, 2 vouchers, 3 escalations.")
+    print("Seeded demo data: 3 providers, 5 users, 6 agencies, 3 escalations.")
 
 
 @app.cli.command("reset-demo")

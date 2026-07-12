@@ -1,10 +1,9 @@
 """Simulated GDS event stream.
 
 A background scheduler (APScheduler) wakes every 45-90 seconds and
-injects a fake event into a random tenant's data — a caught ADM risk,
-a goodwill voucher, an SLA tick. The dashboard polls
-``/provider/live-feed.json`` for these and surfaces them in the
-"Live Activity" card.
+injects a fake event into a random tenant's data — a caught ADM risk
+or a pulsing alert. The dashboard polls ``/provider/live-feed.json``
+for these and surfaces them in the "Live Activity" card.
 
 The point is **the demo never feels frozen**. Walk away for two
 minutes, come back, and counters have moved on their own.
@@ -50,11 +49,6 @@ ADM_REASONS = [
     ("TAX-401", "Tax recalculation required", 90, 380),
     ("SSR-072", "DOCS SSR rejected", 0, 0),   # zero-cost catch
 ]
-VOUCHER_REASONS_STREAM = [
-    "Schedule change >4h", "IROPS rebooking", "Goodwill", "ADM dispute",
-]
-
-
 def _rand_pnr() -> str:
     return "".join(random.choices(PNR_ALPHABET, k=6))
 
@@ -95,35 +89,6 @@ def _event_adm_caught(db, models, agency):
     return f"ADM caught at {agency.name}: {code}"
 
 
-def _event_voucher_issued(db, models, agency):
-    new_id = f"VCH-{random.randint(50000, 99999)}"
-    amount = random.choice([60, 90, 120, 150, 200, 280, 350])
-    db.session.add(models.Voucher(
-        id=new_id,
-        provider_id=agency.provider_id,
-        pax=random.choice(PAX_NAMES),
-        pnr=_rand_pnr(),
-        ticket=_rand_ticket(),
-        reason=random.choice(VOUCHER_REASONS_STREAM),
-        amount=amount,
-        currency="USD",
-        payment="REFUND",
-        card="—",
-        policy="IROPS-A",
-        status="ISSUED",
-        issued="",
-    ))
-    db.session.add(models.AuditLog(
-        provider_id=agency.provider_id,
-        actor_user_id=None,
-        action="STREAM_VOUCHER_ISSUED",
-        target_type="voucher",
-        target_id=new_id,
-        note=f"${amount} {agency.name}",
-    ))
-    return f"Voucher {new_id} issued at {agency.name}"
-
-
 def _event_alert_refresh(db, models, agency):
     """Touch an existing alert's time so the dashboard alerts feed pulses."""
     alerts = models.Alert.query.all()
@@ -143,8 +108,7 @@ def _event_alert_refresh(db, models, agency):
 
 
 EVENTS = [
-    (_event_adm_caught, 5),       # weight 5
-    (_event_voucher_issued, 3),
+    (_event_adm_caught, 5),
     (_event_alert_refresh, 2),
 ]
 
