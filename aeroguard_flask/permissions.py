@@ -47,11 +47,6 @@ PERMISSIONS: dict[str, set[str]] = {
     "user:toggle_active": {ADMIN},
     "user:remove":        {ADMIN},
 
-    # Vouchers
-    "voucher:view":       PROVIDER_ROLES,
-    "voucher:issue":      PROVIDER_ROLES,
-    "voucher:export":     {ADMIN, L2},
-
     # Escalations
     "escalation:view":      PROVIDER_ROLES,
     "escalation:create":    PROVIDER_ROLES,
@@ -73,27 +68,14 @@ PERMISSIONS: dict[str, set[str]] = {
 }
 
 
-# Voucher amount above which an L1 user cannot self-issue (must escalate
-# to L2/ADMIN). Set high enough to feel realistic in demos.
-L1_VOUCHER_CAP = 500.0
-
-
-def can(user, action: str, *, amount: float | None = None) -> bool:
-    """Return True if ``user`` may perform ``action``.
-
-    The optional ``amount`` argument applies to ``voucher:issue`` — L1
-    is capped at ``L1_VOUCHER_CAP``; higher amounts need L2 or ADMIN.
-    """
+def can(user, action: str) -> bool:
+    """Return True if ``user`` may perform ``action``."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
     if not user.active:
         return False
     allowed = PERMISSIONS.get(action, set())
-    if user.role not in allowed:
-        return False
-    if action == "voucher:issue" and user.role == L1 and amount is not None and amount > L1_VOUCHER_CAP:
-        return False
-    return True
+    return user.role in allowed
 
 
 def require(action: str):

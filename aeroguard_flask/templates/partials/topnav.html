@@ -23,8 +23,6 @@
                class="{{ 'active' if active_nav == 'AGENCIES' else '' }}">Agency Provision ITA</a></li>
         <li><a href="{{ url_for('provider_users') }}"
                class="{{ 'active' if active_nav == 'USERS' else '' }}">Manage Users</a></li>
-        <li><a href="{{ url_for('provider_vouchers') }}"
-               class="{{ 'active' if active_nav == 'VOUCHERS' else '' }}">Voucher Management</a></li>
         <li><a href="{{ url_for('provider_audits') }}"
                class="{{ 'active' if active_nav == 'AUDITS' else '' }}">AA Audit</a></li>
       </ul>

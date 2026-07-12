@@ -1,9 +1,9 @@
 """Seed + reset routines for the AERO-GUARD MVP.
 
 These functions create a known-good demo state: 3 provider companies,
-1 consultant, and realistic agencies / vouchers / escalations spread
-across them. Used by the ``flask seed`` and ``flask reset-demo`` CLI
-commands (registered in app.py).
+1 consultant, and realistic agencies / escalations spread across them.
+Used by the ``flask seed`` and ``flask reset-demo`` CLI commands
+(registered in app.py).
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from models import (
     Provider,
     User,
     Agency,
-    Voucher,
     Escalation,
     Thread,
     Message,
@@ -22,6 +21,7 @@ from models import (
     LearningModule,
     Alert,
     PendingIssue,
+    AuditLog,
 )
 
 
@@ -29,8 +29,8 @@ def _wipe() -> None:
     """Delete every row in every table. Order matters (children first)."""
     Message.query.delete()
     Thread.query.delete()
-    Voucher.query.delete()
     Escalation.query.delete()
+    AuditLog.query.delete()
     Agency.query.delete()
     User.query.delete()
     Provider.query.delete()
@@ -102,13 +102,6 @@ def seed_all() -> None:
         agencies.append(a)
     db.session.add_all(agencies)
 
-    # --- Vouchers ---------------------------------------------------------
-    v1 = Voucher(id="VCH-44021", provider_id="PRV-AG",  pax="MOYO/SOVIET", pnr="X7K2QP", ticket="157-2244778899", reason="Schedule change >4h", amount=120, currency="USD", payment="REFUND",  card="•••• 4421", policy="IROPS-A",  status="ISSUED")
-    v2 = Voucher(id="VCH-44020", provider_id="PRV-SKY", pax="NCUBE/T MRS", pnr="RR81LM", ticket="157-2244778812", reason="Goodwill",            amount=50,  currency="USD", payment="VOUCHER", card="—",         policy="GOODWILL", status="REDEEMED")
-    v1.created_at = v1.updated_at = ago(hours=4)
-    v2.created_at = v2.updated_at = ago(hours=7)
-    db.session.add_all([v1, v2])
-
     # --- Escalations ------------------------------------------------------
     esc_specs = [
         # id, prov, agency, pnr, subject, level, priority, status, opened (ago), sla_in
@@ -127,7 +120,7 @@ def seed_all() -> None:
 
     # --- Threads + Messages ----------------------------------------------
     t91 = Thread(id="T-91", provider_id="PRV-AG",  agency="Skylink Travel", agent="Rumbi",  unread=2, last="Need help on a DOCS SSR reject")
-    t90 = Thread(id="T-90", provider_id="PRV-SKY", agency="Voyage Africa",  agent="Tendai", unread=0, last="Voucher not received by pax")
+    t90 = Thread(id="T-90", provider_id="PRV-SKY", agency="Voyage Africa",  agent="Tendai", unread=0, last="ADM QR/2510 evidence bundle status?")
     t91.created_at = t91.updated_at = ago(minutes=8)
     t90.created_at = t90.updated_at = ago(minutes=35)
     db.session.add_all([t91, t90])
@@ -135,8 +128,8 @@ def seed_all() -> None:
     msgs = [
         ("T-91", "AGENT", "DOCS SSR keeps rejecting — passport name has hyphen", ago(minutes=9)),
         ("T-91", "AGENT", "Need help on a DOCS SSR reject",                      ago(minutes=8)),
-        ("T-90", "AGENT", "Voucher VCH-44021 not received by pax",               ago(minutes=40)),
-        ("T-90", "OPS",   "Resent — please confirm",                             ago(minutes=35)),
+        ("T-90", "AGENT", "ADM QR/2510 evidence bundle — any status update?",   ago(minutes=40)),
+        ("T-90", "OPS",   "Uploaded — please confirm receipt",                  ago(minutes=35)),
     ]
     for tid, sender, text, when in msgs:
         m = Message(thread_id=tid, sender=sender, text=text, t=when.strftime("%H:%M"))
@@ -168,7 +161,7 @@ def seed_all() -> None:
         PendingIssue(id="P-1", agency="Skylink Travel",    type="DOCS SSR",    summary="Passport hyphen rejected — 3 PAX",       age="8 min", priority="HIGH"),
         PendingIssue(id="P-2", agency="Voyage Africa",     type="ADM Dispute", summary="QR/2510 evidence pack pending",          age="1 hr",  priority="HIGH"),
         PendingIssue(id="P-3", agency="BlueSky Holidays",  type="Onboarding",  summary="SSO redirect failing",                   age="3 hr",  priority="MED"),
-        PendingIssue(id="P-4", agency="Continental Tours", type="Voucher",     summary="VCH-44018 awaiting approval >$500",      age="5 hr",  priority="MED"),
+        PendingIssue(id="P-4", agency="Continental Tours", type="Fare Rule",   summary="Advance-purchase rule breach — 2 PNRs",  age="5 hr",  priority="MED"),
     ])
 
     db.session.commit()

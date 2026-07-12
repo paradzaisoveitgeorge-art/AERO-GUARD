@@ -11,7 +11,7 @@ overview**. Engineers can jump to §3.
 
 ## 1. Plain-English overview
 
-Until now, when you restarted the Flask server, every agency / voucher /
+Until now, when you restarted the Flask server, every agency /
 escalation you'd added would vanish — they only lived in Python memory.
 Section 2 fixed that. We now save everything to a small database file
 called `aeroguard.db`, sitting in the `instance/` folder next to the app.
@@ -62,7 +62,6 @@ provider only ever sees its own data (enforced in Section 5).
 ├──────────────────────────────────────────────────────────────────────────┤
 │  providers  ──┬──→  users          (provider staff + consultants)       │
 │               ├──→  agencies       (the travel agencies they manage)    │
-│               ├──→  vouchers                                            │
 │               ├──→  escalations                                         │
 │               ├──→  threads ──→ messages                                │
 │               └──→  audit_logs                                          │
@@ -80,7 +79,6 @@ provider only ever sees its own data (enforced in Section 5).
 | `providers` | The AERO-GUARD provider company (helpdesk / reseller). | `id`, `name`, `slug` |
 | `users` | A login. Either provider staff or a travel agency consultant. | `id`, `provider_id` (nullable for consultants), `email`, `role` |
 | `agencies` | Travel agencies managed by a provider. Soft-deletable via `deleted_at`. | `id`, `provider_id`, `status`, `month_adms` |
-| `vouchers` | Goodwill / IROPS / refund vouchers issued. | `id`, `provider_id`, `amount`, `status` |
 | `escalations` | Helpdesk tickets escalating between L1 → L2 → vendor. | `id`, `provider_id`, `level`, `priority` |
 | `threads` + `messages` | Client conversations on `/provider/respond`. | `thread_id`, `sender`, `text` |
 | `audit_logs` | Append-only "who did what" trail. Populated in Section 8. | `actor_user_id`, `action`, `target_id` |

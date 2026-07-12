@@ -1,7 +1,8 @@
 <div class="ag-panel" id="ag-panel" style="display:none;">
   <div class="ag-panel__header">
     <div class="ag-panel__brand">
-      <div class="ag-panel__logo">AG</div>
+      <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+           alt="AERO-GUARD" class="ag-panel__logo-img" />
       <div>
         <div class="ag-panel__name">AERO-GUARD</div>
         <div class="ag-panel__sub">Smart Button &middot; v0.4</div>
@@ -13,7 +14,6 @@
   <div class="ag-tabs">
     <button type="button" class="active" data-tab="violations" onclick="setTab('violations')">Alerts <span class="badge" id="tab-badge-prevented">11</span><span class="glow" id="tab-glow"></span></button>
     <button type="button" data-tab="passport" onclick="setTab('passport')">Passport</button>
-    <button type="button" data-tab="vouchers" onclick="setTab('vouchers')">Vouchers <span class="badge">3</span></button>
     <button type="button" data-tab="learn" onclick="setTab('learn')">Learn <span class="badge">3</span></button>
     <button type="button" data-tab="help" onclick="setTab('help')">Help</button>
   </div>
@@ -98,33 +98,6 @@
         </div>
         <div id="passport-applied" class="ag-applied" style="display:none;">&check; Pushed to PNR &middot; NM + DOCS SSR</div>
       </div>
-    </div>
-
-    <!-- Vouchers tab -->
-    <div data-tabpanel="vouchers" style="display:none;">
-      {% for v in vouchers %}
-      <div class="ag-voucher-card">
-        <div class="ag-voucher-card__top">
-          <div>
-            <div style="display:flex; align-items:center; gap:6px;">
-              <span class="ag-voucher-card__tier tier-{{ v.tier.lower() }}">{{ v.tier }}</span>
-              <span class="ag-voucher-card__id">{{ v.id }}</span>
-            </div>
-            <div class="ag-voucher-card__pax">{{ v.pax }}</div>
-            <div class="ag-voucher-card__meta">{{ v.airline }} &middot; exp {{ v.expires }} &middot; {{ v.policy_ref }}</div>
-          </div>
-          <div>
-            <div class="ag-voucher-card__amount">${{ v.amount }}</div>
-            <div class="ag-voucher-card__status status-{{ v.status.lower() }}">{{ v.status }}</div>
-          </div>
-        </div>
-        <div class="ag-voucher-card__actions">
-          <button type="button" class="attach" onclick="alert('Voucher {{ v.id }} attached to PNR H2ML1J')">Attach to PNR</button>
-          <button type="button" class="details" onclick="alert('{{ v.id }} — {{ v.pax }} — {{ v.policy_ref }}')">Details</button>
-        </div>
-      </div>
-      {% endfor %}
-      <button type="button" class="ag-issue-btn" onclick="alert('Opening voucher issuance…')">+ Issue new voucher</button>
     </div>
 
     <!-- Learn tab -->

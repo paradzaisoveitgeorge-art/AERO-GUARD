@@ -22,7 +22,7 @@ This is not real GDS data — it's a small simulator that runs inside
 the same Python process as the web server. Every 45–90 seconds it:
 
 1. Picks a random active agency from any tenant
-2. Picks an event type (ADM caught, voucher issued, alert refresh)
+2. Picks an event type (ADM caught, alert refresh)
 3. Writes that event to the database + audit log
 
 The dashboard polls for those audit-log entries every 10 seconds and
@@ -42,7 +42,6 @@ Defined in `stream.py` as `EVENTS` (a weighted list).
 | Event | Weight | What it writes |
 |---|---|---|
 | `STREAM_ADM_CAUGHT` | 5 | Bumps `agency.month_adms`, appends a new `PendingIssue` row, writes audit log. Drives the "ADMs Prevented" counter and "Pending Issues" tile. |
-| `STREAM_VOUCHER_ISSUED` | 3 | Creates a `Voucher` for a random PAX. Visible on the Vouchers page. |
 | `STREAM_ALERT_TICK` | 2 | Touches an existing `Alert` row's time so the service-alerts feed pulses. |
 
 To add a new event: write a function `_event_x(db, models, agency)`
@@ -172,8 +171,8 @@ AEROGUARD_STREAM_MIN_S=10 AEROGUARD_STREAM_MAX_S=20 python app.py
 Section 7 was the last "missing demo magic" item. The MVP is now
 **materially feature-complete**. Sections 8 onward are the wrapping:
 
-- **Section 8**: real reports + CSV exports beyond vouchers (ADM
-  savings, escalation SLA stats)
+- **Section 8**: real reports + CSV exports (ADM savings, escalation
+  SLA stats)
 - **Section 9**: deploy to Render, custom domain, HTTPS
 - **Section 10**: landing page at `/`, /about, /privacy
 - **Section 11**: backups, error tracking (Sentry), uptime monitor

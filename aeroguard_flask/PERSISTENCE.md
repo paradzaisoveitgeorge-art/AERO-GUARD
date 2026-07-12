@@ -15,7 +15,7 @@ Until Section 5, dates and times in the demo were **strings**, not
 datetimes. The seed file said `last_active="3 min ago"` literally —
 those words. That looked fine when we restarted the server every five
 minutes, but the moment data starts surviving across days (which it
-now does), those strings rot. A voucher issued yesterday still
+now does), those strings rot. An escalation opened yesterday still
 says "today" forever. A login from last week still says "now".
 
 Section 6 fixes that.
@@ -23,8 +23,8 @@ Section 6 fixes that.
 Three changes:
 
 1. **Real datetimes in the database** for every event that has a time
-   ("agency last touched", "voucher issued", "user last logged in",
-   "escalation SLA due"). Every mutation stamps them automatically.
+   ("agency last touched", "user last logged in", "escalation SLA
+   due"). Every mutation stamps them automatically.
 2. **One helper** — `humanize(when)` — turns any datetime into the
    prose the UI expects: "just now", "3 min ago", "yesterday",
    "4 days ago", "3 mo ago". Used everywhere we used to hardcode.
@@ -79,7 +79,6 @@ Migration: `888a60e94a0c_section6_updated_at_last_login_at_sla_.py`
 |---|---|---|
 | `users` | `last_login_at` (datetime) | Real timestamp set on every successful login. The legacy `last_login` string is kept in sync but no longer authoritative. |
 | `agencies` | `updated_at` (datetime, auto-bumps on UPDATE) | Drives the "Last Active" column. |
-| `vouchers` | `updated_at` | Drives "Issued" display via `created_at`. |
 | `escalations` | `updated_at` | Bumped on escalate/resolve. |
 | `escalations` | `sla_due_at` (datetime) | The real SLA deadline. `sla` string is now computed from it. |
 | `threads` | `updated_at` | Bumped on every reply. |
@@ -103,7 +102,7 @@ the current tenant, ordered newest first, capped at 500 rows.
 
 Filters in the form bar:
 - **Action contains** — dropdown of distinct actions seen so far
-  (`AGENCY_DELETE`, `VOUCHER_ISSUE`, `ESCALATION_ESCALATE`, …)
+  (`AGENCY_DELETE`, `ESCALATION_ESCALATE`, `USER_INVITE`, …)
 - **Actor** — dropdown of provider users
 - **Window** — last 1, 7, 30, 90 days, or all time
 
@@ -127,7 +126,7 @@ confirmation.
 Calls `seed_all()` from `seed.py`, which:
 1. Truncates every operational and catalog table
 2. Re-creates the 3 providers, 5 users (incl. consultant), 6
-   agencies, 2 vouchers, 3 escalations, 2 threads with messages
+   agencies, 3 escalations, 2 threads with messages
 3. Seeds the standard demo timestamps (matched to the human strings
    the original prototype used — "3 min ago", "yesterday", etc.)
 
@@ -142,8 +141,8 @@ the standard demo password. Sub-second on SQLite.
 
 ## 6. Why we kept the legacy string columns
 
-The original `last_login`, `last_active`, `issued`, `sla`, `opened`
-string columns are still on the models. We didn't drop them because:
+The original `last_login`, `last_active`, `sla`, `opened` string
+columns are still on the models. We didn't drop them because:
 
 1. The original UI was wired to expect plain strings, and Section 6's
    to-dict helpers now overwrite the field with `humanize(real_ts)`

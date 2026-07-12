@@ -14,7 +14,7 @@ If you've never worked with multi-tenant systems before, start with
 
 AERO-GUARD is a **multi-tenant SaaS**: one running app serves multiple
 provider companies (today: AERO-GUARD HQ, SkyOps Africa, Horizon GDS
-Partners). Each provider has its own agencies, vouchers, escalations
+Partners). Each provider has its own agencies, escalations
 and helpdesk staff. **None of them should ever see another provider's
 data.**
 
@@ -93,9 +93,8 @@ Used in every mutating route that operates on a specific record.
 |---|---|
 | `agencies` | `policy_docs` |
 | `users` (except consultants) | `learning_modules` |
-| `vouchers` | `alerts` |
-| `escalations` | `pending_issues` |
-| `threads` + `messages` | |
+| `escalations` | `alerts` |
+| `threads` + `messages` | `pending_issues` |
 | `audit_logs` | |
 
 > **Why are catalog tables shared?** They're reference material that
@@ -125,9 +124,6 @@ Every route below now enforces tenancy:
 | `POST /provider/users/invite` | Writes with `provider_id=current` | Global email uniqueness enforced |
 | `POST /provider/users/<id>/toggle-active` | `get_owned_or_404` | Can't disable yourself |
 | `POST /provider/users/<id>/remove` | `get_owned_or_404` | Can't remove yourself |
-| `GET /provider/vouchers` | `tenant_q(Voucher)` | Search runs on tenant data |
-| `POST /provider/vouchers/issue` | Writes with `provider_id=current` | Audit + L1 cap |
-| `GET /provider/vouchers/export.csv` | `tenant_q(Voucher)` | Only own rows exported |
 | `GET /provider/audits` | `all_agencies()` | Health/savings computed from own data |
 | `GET /provider/escalations` | `tenant_q(Escalation)` | |
 | `POST /provider/escalations/new` | Writes with `provider_id=current` | |
@@ -165,8 +161,8 @@ target_id, note=...)`. Each row records:
 |---|---|
 | `provider_id` | The tenant the action belongs to |
 | `actor_user_id` | Who performed it |
-| `action` | e.g. `AGENCY_DELETE`, `VOUCHER_ISSUE`, `USER_INVITE` |
-| `target_type` | `agency` / `voucher` / `escalation` / `user` / `thread` |
+| `action` | e.g. `AGENCY_DELETE`, `USER_INVITE`, `ESCALATION_CREATE` |
+| `target_type` | `agency` / `escalation` / `user` / `thread` |
 | `target_id` | The PK of the affected row |
 | `note` | Free text for context (amount, new status, etc.) |
 | `created_at` | UTC timestamp |
@@ -188,7 +184,6 @@ them after any change that touches the data layer.
 ```bash
 # Soviet (PRV-AG admin) should ONLY see his own data:
 #   - Agencies AG-1001 (Skylink), AG-1004 (Continental Tours)
-#   - Vouchers VCH-44021
 #   - Escalation ESC-7781
 
 # Try to delete an agency that belongs to PRV-HZ:
@@ -263,8 +258,6 @@ remain:
 
 - "Last login" still says "now"/"2 hr ago" as static strings rather
   than computed from the DB timestamp.
-- No "issued" timestamp on vouchers — just the literal string
-  `"just now"`. We should compute these from `created_at`.
 - The seed script seeds `last_active` as `"3 min ago"` — fun for
   demos, fragile across days. Section 6 makes these dynamic.
 

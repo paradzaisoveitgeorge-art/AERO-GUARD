@@ -104,26 +104,6 @@ class Agency(db.Model):
     provider = db.relationship("Provider", back_populates="agencies")
 
 
-class Voucher(db.Model):
-    __tablename__ = "vouchers"
-
-    id = db.Column(db.String(20), primary_key=True)
-    provider_id = db.Column(db.String(20), db.ForeignKey("providers.id"), nullable=False, index=True)
-    pax = db.Column(db.String(120))
-    pnr = db.Column(db.String(20))
-    ticket = db.Column(db.String(40))
-    reason = db.Column(db.String(80))
-    amount = db.Column(db.Float, default=0)
-    currency = db.Column(db.String(8), default="USD")
-    payment = db.Column(db.String(20), default="REFUND")
-    card = db.Column(db.String(40), default="—")
-    policy = db.Column(db.String(40), default="GOODWILL")
-    status = db.Column(db.String(20), default="ISSUED")
-    issued = db.Column(db.String(40), default="just now")  # legacy display string
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
 class Escalation(db.Model):
     __tablename__ = "escalations"
 
@@ -232,7 +212,7 @@ class AuditLog(db.Model):
     provider_id = db.Column(db.String(20), db.ForeignKey("providers.id"), index=True)
     actor_user_id = db.Column(db.String(20), db.ForeignKey("users.id"), nullable=True)
     action = db.Column(db.String(60), nullable=False)  # e.g. AGENCY_SUSPEND
-    target_type = db.Column(db.String(40))  # e.g. agency, voucher
+    target_type = db.Column(db.String(40))  # e.g. agency, escalation
     target_id = db.Column(db.String(40))
     note = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
