@@ -1,0 +1,16 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Access denied · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Access denied</h1>
+  <p class="subtitle">Your account doesn't have permission to view this page.</p>
+  <div class="alert alert-err">
+    Logged in as <strong>{{ current_user.email if current_user.is_authenticated else 'guest' }}</strong> ({{ current_user.role if current_user.is_authenticated else '—' }}).
+  </div>
+  <div class="footer-link">
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('smartpoint_demo') if not current_user.is_provider_staff() else url_for('provider_dashboard') }}">← Back to your dashboard</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">Sign in</a>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -30,11 +30,18 @@
         </div>
       </div>
       <div class="esc-actions">
+        {% if can('escalation:to_l2') %}
         <a class="btn to-l2" href="{{ url_for('provider_escalations', escalate=e.id, to='L2') }}">&rarr; L2 Jometech</a>
+        {% endif %}
+        {% if can('escalation:to_vendor') %}
         <a class="btn to-vendor" href="{{ url_for('provider_escalations', escalate=e.id, to='VENDOR') }}">&rarr; GDS Vendor</a>
+        {% endif %}
+        {% if can('escalation:resolve') %}
         <form method="post" action="{{ url_for('resolve_escalation', esc_id=e.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button type="submit" class="resolve">&check; Resolved</button>
         </form>
+        {% endif %}
       </div>
     </li>
     {% endfor %}
@@ -54,6 +61,7 @@
   </div>
   <div class="modal-body">
     <form class="form-stack" method="post" action="{{ url_for('escalate_escalation', esc_id=escalate_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <input type="hidden" name="to" value="{{ escalate_to }}" />
       <div class="escalate-context">
         Confirm escalation of <b>{{ escalate_id }}</b> {% if esc %}({{ esc.agency }}){% endif %} to <b>{{ escalate_to }}</b>. This will be logged in the audit trail.
@@ -91,6 +99,7 @@
   </div>
   <div class="modal-body">
     <form class="form-stack" method="post" action="{{ url_for('new_escalation') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="field">
         <label>Agency affected</label>
         <select name="agency">

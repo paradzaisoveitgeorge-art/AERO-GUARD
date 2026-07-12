@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}AERO-GUARD{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}" />
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="ag-badge">AG</div>
+        <div>
+          <div class="brand-text">AERO-GUARD</div>
+          <div class="brand-tag">Provider Console</div>
+        </div>
+      </div>
+      {% block body %}{% endblock %}
+    </div>
+  </div>
+</body>
+</html>

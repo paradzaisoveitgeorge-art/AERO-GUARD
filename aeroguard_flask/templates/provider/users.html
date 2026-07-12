@@ -7,7 +7,11 @@
     <h1 class="page-header__title">Helpdesk Users</h1>
     <p class="page-header__subtitle">Add or remove operator accounts &middot; every sign-on is audited</p>
   </div>
+  {% if can('user:invite') %}
   <button class="btn btn-primary" onclick="document.getElementById('add-user-modal').style.display='block'">+ Add User</button>
+  {% else %}
+  <span class="role-locked" title="Adding users requires ADMIN role">+ Add User 🔒</span>
+  {% endif %}
 </div>
 
 <div class="card">
@@ -40,12 +44,18 @@
         <td style="font-size:12px; color: var(--slate-400);">{{ u.last_login }}</td>
         <td class="row-actions">
           <button type="button" class="icon-btn sky" onclick="alert('Audit trail for {{ u.name }} — 142 actions logged')">Audit</button>
+          {% if can('user:toggle_active') %}
           <form method="post" action="{{ url_for('toggle_user_active', user_id=u.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="icon-btn amber">{{ "Disable" if u.active else "Enable" }}</button>
           </form>
+          {% endif %}
+          {% if can('user:remove') %}
           <form method="post" action="{{ url_for('remove_user', user_id=u.id) }}" onsubmit="return confirm('Remove {{ u.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="icon-btn red">Remove</button>
           </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -64,6 +74,7 @@
   </div>
   <div class="modal-body">
     <form class="form-stack" method="post" action="{{ url_for('invite_user') }}" onsubmit="return confirmDomain(event)">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="field">
         <label>Full name *</label>
         <input name="name" required />

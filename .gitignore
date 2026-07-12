@@ -24,3 +24,19 @@ Thumbs.db
 
 # Archives / large generated files
 *.zip
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Local databases / uploads (Flask MVP)
+*.db
+*.sqlite
+*.sqlite3
+aeroguard_flask/uploads/
+aeroguard_flask/instance/
+
+# Personal / non-project documents (do not commit)
+CoverLetter_GreenFuel_Curtis l.y Kasuksa.pdf
+curtis l.y Kasukusa Green fuel cover letter.pdf
