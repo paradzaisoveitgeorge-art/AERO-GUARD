@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Helpdesk Console{% endblock %}
+{% block title %}Dashboard &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="hero">
@@ -90,7 +90,7 @@
       </div>
       <span class="live-pulse" title="Live"><span class="live-dot"></span>LIVE</span>
     </div>
-    <ul id="live-feed" class="live-list">
+    <ul id="live-feed" class="live-list" aria-live="polite" aria-atomic="false" aria-label="Live event stream">
       <li class="live-empty">Waiting for events&hellip;</li>
     </ul>
   </div>

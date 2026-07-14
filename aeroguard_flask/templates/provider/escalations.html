@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Escalations{% endblock %}
+{% block title %}Escalations &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -12,6 +12,7 @@
 
 <div class="card">
   <ul class="esc-list">
+    {% if escalations %}
     {% for e in escalations %}
     <li class="esc-item">
       <div style="flex:1;">
@@ -45,6 +46,14 @@
       </div>
     </li>
     {% endfor %}
+    {% else %}
+    <li class="empty-state">
+      <div class="empty-state__icon">&#9989;</div>
+      <div class="empty-state__title">No open escalations</div>
+      <div class="empty-state__body">All quiet on the escalations front. When an L1 agent flags something, or a client raises a ticket, it will appear here.</div>
+      <a class="btn btn-primary" href="{{ url_for('provider_escalations', new=1) }}">+ New Escalation</a>
+    </li>
+    {% endif %}
   </ul>
 </div>
 

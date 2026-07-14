@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Agency Provisioning{% endblock %}
+{% block title %}Agencies &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -96,8 +96,8 @@
         <td>{{ a.month_adms }}</td>
         <td style="font-size:12px; color: var(--slate-400);">{{ a.last_active }}</td>
         <td class="row-actions">
-          <button type="button" class="icon-btn sky" title="Audit" onclick="alert('Opening audit for {{ a.name }}')">&#128202;</button>
-          <button type="button" class="icon-btn indigo" title="Resend welcome" onclick="alert('Welcome email resent to {{ a.admin_email }}')">&#9993;</button>
+          <button type="button" class="icon-btn sky" title="Audit" aria-label="Open audit for {{ a.name }}" onclick="alert('Opening audit for {{ a.name }}')">&#128202;</button>
+          <button type="button" class="icon-btn indigo" title="Resend welcome" aria-label="Resend welcome email to {{ a.admin_email }}" onclick="alert('Welcome email resent to {{ a.admin_email }}')">&#9993;</button>
           {% if can('agency:suspend') %}
           <form method="post" action="{{ url_for('toggle_suspend_agency', agency_id=a.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -112,6 +112,13 @@
           {% endif %}
         </td>
       </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty-state-cell">
+        <div class="empty-state__icon">&#127970;</div>
+        <div class="empty-state__title">No agencies yet</div>
+        <div class="empty-state__body">Provision your first travel agency to start seeing ADM risk, seats, and audit activity here.</div>
+        {% if can('agency:provision') %}<button type="button" class="btn btn-primary" onclick="openProvisionModal()">+ Provision Agency</button>{% endif %}
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

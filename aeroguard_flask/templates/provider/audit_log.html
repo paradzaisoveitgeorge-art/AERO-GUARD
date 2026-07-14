@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Audit Log{% endblock %}
+{% block title %}Audit Log &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -67,7 +67,11 @@
         <td style="color: var(--slate-400); font-size: 12px;">{{ r.note or '' }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="color: var(--slate-500); text-align:center; padding: 20px;">No audit entries match your filters.</td></tr>
+      <tr><td colspan="5" class="empty-state-cell">
+        <div class="empty-state__icon">&#128220;</div>
+        <div class="empty-state__title">No audit entries match your filters</div>
+        <div class="empty-state__body">Try widening the time window or clearing the action filter.</div>
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

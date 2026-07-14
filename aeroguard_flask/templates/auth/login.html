@@ -5,9 +5,6 @@
   <p class="subtitle">Access the provider console or consultant terminal.</p>
 
   {% if error %}<div class="alert alert-err">{{ error }}</div>{% endif %}
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, m in msgs %}<div class="alert alert-{{ 'ok' if cat == 'success' else 'info' }}">{{ m }}</div>{% endfor %}
-  {% endwith %}
 
   <form method="post" action="{{ url_for('login') }}" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />

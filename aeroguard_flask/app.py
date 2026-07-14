@@ -147,6 +147,16 @@ def _forbidden(_e):
     return render_template("auth/403.html"), 403
 
 
+@app.errorhandler(404)
+def _not_found(_e):
+    return render_template("auth/404.html"), 404
+
+
+@app.errorhandler(500)
+def _server_error(_e):
+    return render_template("auth/500.html"), 500
+
+
 @app.before_request
 def _require_login_for_provider_console():
     if request.endpoint in PUBLIC_ENDPOINTS or request.endpoint is None:
@@ -406,9 +416,14 @@ def login():
     return render_template("auth/login.html", error=error, next=next_url)
 
 
-@app.route("/logout", methods=["POST"])
+@app.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
+    # GET renders a confirm-sign-out page (so bookmarks / typed URLs
+    # don't 405). Only POST actually clears the session — that keeps
+    # logout CSRF-protected.
+    if request.method == "GET":
+        return render_template("auth/logout_confirm.html")
     logout_user()
     flash("Signed out.", "info")
     return redirect(url_for("login"))

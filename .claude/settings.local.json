@@ -96,7 +96,11 @@
       "Bash(curl -s -o /dev/null -w \"local server: HTTP %{http_code}\\\\n\" http://localhost:5050/login)",
       "Bash(cloudflared --version)",
       "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://blocking-cover-yourself-claims.trycloudflare.com/login)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git merge *)",
+      "Bash(curl -s -o /dev/null -w \"GET /nonexistent  %{http_code}\\\\n\" http://localhost:5050/nonexistent)",
+      "Bash(curl -s -o /dev/null -w \"GET /logout       %{http_code}  \\(redirect: %{redirect_url}\\)\\\\n\" http://localhost:5050/logout)",
+      "Bash(curl -s -o /dev/null -w \"POST /logout      %{http_code}\\\\n\" -X POST http://localhost:5050/logout)"
     ]
   }
 }

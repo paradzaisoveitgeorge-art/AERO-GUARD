@@ -1,0 +1,13 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Page not found · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Page not found</h1>
+  <p class="subtitle">The page you were looking for doesn't exist, or it's been moved.</p>
+  <div class="footer-link">
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('smartpoint_demo') if not current_user.is_provider_staff() else url_for('provider_dashboard') }}">← Back to your dashboard</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">Sign in</a>
+    {% endif %}
+  </div>
+{% endblock %}
