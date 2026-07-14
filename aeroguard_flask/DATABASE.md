@@ -179,6 +179,36 @@ if db_url.startswith("postgres://"):       # Render / Heroku quirk
 
 ---
 
+## 6.1 Backups (production)
+
+**Render `starter` plan and up**: Render Postgres takes an automatic
+daily snapshot and keeps 7 days of history. Restore is one click in
+the Render dashboard. Nothing to configure — comes with the plan.
+
+**Render `free` plan**: no automatic backups (that's the trade-off
+for $0). Two options if you're staying on free:
+
+1. **Manual dump before big changes** — from the Render dashboard
+   Shell for the `aero-guard-web` service, run:
+   ```
+   pg_dump $DATABASE_URL > /tmp/aeroguard-$(date +%F).sql
+   ```
+   then download the file. Do this before running any risky migration.
+
+2. **External nightly cron** — set up a GitHub Actions workflow with
+   a schedule trigger that dumps the DB and uploads to S3 / Backblaze
+   B2 / a private repo. Runs on GitHub's runners, doesn't need any
+   Render-side setup. Not written yet — flagged for P4 (exports).
+
+**Manual restore** (any plan):
+```
+psql $DATABASE_URL < backup.sql
+```
+
+Restoring wipes existing data — make a fresh dump first if it matters.
+
+---
+
 ## 7. Why we structure data this way (cheat sheet)
 
 | Decision | Reason |

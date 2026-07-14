@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    name: Smoke boot + migrations
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aeroguard_flask
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.2"
+          cache: pip
+          cache-dependency-path: aeroguard_flask/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify app imports without error
+        env:
+          FLASK_ENV: development
+          SECRET_KEY: ci-only-not-a-real-secret
+          AEROGUARD_STREAM: "0"
+        run: python -c "import app; print('app imports OK — routes:', len(list(app.app.url_map.iter_rules())))"
+
+      - name: Run Alembic migrations against a fresh SQLite
+        env:
+          FLASK_APP: app
+          FLASK_ENV: development
+          SECRET_KEY: ci-only-not-a-real-secret
+          AEROGUARD_STREAM: "0"
+        run: |
+          mkdir -p instance
+          flask db upgrade
+          flask db current
+
+      - name: Boot the app in the background and hit /healthz
+        env:
+          FLASK_APP: app
+          FLASK_ENV: development
+          SECRET_KEY: ci-only-not-a-real-secret
+          AEROGUARD_STREAM: "0"
+          PORT: "5050"
+        run: |
+          python app.py &
+          PID=$!
+          # wait up to 15s for the server to accept connections
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:5050/healthz > /dev/null; then
+              echo "healthz OK after ${i}x0.5s"
+              kill $PID || true
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "healthz never came up"
+          kill $PID || true
+          exit 1
