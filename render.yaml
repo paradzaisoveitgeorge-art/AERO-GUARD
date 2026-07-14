@@ -1,0 +1,47 @@
+# render.yaml — Infrastructure-as-Code for Render.com deploys.
+#
+# Provisions:
+#   1. A managed Postgres database (aero-guard-db)
+#   2. A web service running the Flask app under gunicorn
+#      (aero-guard-web) that reads DATABASE_URL from the DB.
+#
+# First deploy: sign in to Render, "New" → "Blueprint" → point at
+# this repo. Render reads this file and provisions everything.
+# Full step-by-step in DEPLOY.md.
+
+databases:
+  - name: aero-guard-db
+    plan: free                # bump to `starter` ($7/mo) for daily backups + more storage
+    postgresMajorVersion: 16
+    databaseName: aeroguard
+    user: aeroguard
+
+services:
+  - type: web
+    name: aero-guard-web
+    plan: free                # bump to `starter` for zero cold starts + custom domain
+    runtime: python
+    rootDir: aeroguard_flask  # Flask app lives here, not at repo root
+    buildCommand: pip install -r requirements.txt && flask db upgrade
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 60 --access-logfile - --error-logfile -
+    healthCheckPath: /healthz
+    autoDeploy: true          # deploy on every push to main
+    envVars:
+      - key: FLASK_APP
+        value: app
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true   # Render generates a strong random string
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aero-guard-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.11.2
+      - key: AEROGUARD_STREAM
+        value: "1"            # keep the simulated GDS event stream on
+      - key: AEROGUARD_STREAM_MIN_S
+        value: "45"
+      - key: AEROGUARD_STREAM_MAX_S
+        value: "90"
