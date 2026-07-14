@@ -42,20 +42,24 @@ html, body {
 
 .auth-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 22px;
+  gap: 6px;
+  margin-bottom: 26px;
 }
-.auth-brand .ag-badge {
-  width: 36px; height: 36px;
-  background: linear-gradient(135deg, var(--auth-accent), var(--auth-accent-dark));
-  color: #fff;
-  border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; letter-spacing: 0.5px;
+.auth-brand__logo {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  object-fit: contain;
 }
-.auth-brand .brand-text { font-weight: 600; letter-spacing: 0.4px; }
-.auth-brand .brand-tag { font-size: 11px; color: var(--auth-muted); letter-spacing: 1px; text-transform: uppercase; }
+.auth-brand .brand-tag {
+  font-size: 11px;
+  color: var(--auth-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
 
 .auth-card h1 {
   font-size: 20px;
