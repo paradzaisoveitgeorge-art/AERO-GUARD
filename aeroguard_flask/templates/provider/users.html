@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Helpdesk Users{% endblock %}
+{% block title %}Users &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -58,6 +58,13 @@
           {% endif %}
         </td>
       </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state-cell">
+        <div class="empty-state__icon">&#128101;</div>
+        <div class="empty-state__title">No helpdesk users yet</div>
+        <div class="empty-state__body">Invite a teammate to help manage escalations and respond to clients.</div>
+        {% if can('user:invite') %}<button type="button" class="btn btn-primary" onclick="openAddUserModal()">+ Invite Teammate</button>{% endif %}
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

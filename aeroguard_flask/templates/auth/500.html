@@ -1,0 +1,13 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Something went wrong · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Something went wrong</h1>
+  <p class="subtitle">We hit an unexpected error. The team has been notified. Please try again in a moment.</p>
+  <div class="footer-link">
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('smartpoint_demo') if not current_user.is_provider_staff() else url_for('provider_dashboard') }}">← Back to your dashboard</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">Sign in</a>
+    {% endif %}
+  </div>
+{% endblock %}

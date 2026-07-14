@@ -825,3 +825,235 @@ a.stat-card:hover {
 .learning-card__name { font-weight: 500; }
 .learning-card__badge { font-size: 12px; color: var(--slate-400); margin-top: 4px; }
 .learning-card__pct { font-size: 12px; font-family: var(--font-mono); color: var(--slate-400); }
+
+
+/* ============================================================
+   Accessibility (P1h) — visible focus ring for keyboard users,
+   plus a screen-reader-only helper class for hidden labels.
+   :focus-visible only matches when the user is actually
+   navigating with the keyboard, so it doesn't show ugly rings
+   on mouse clicks.
+   ============================================================ */
+:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Buttons already have a border-radius — match it so the ring hugs. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
+}
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
+/* ============================================================
+   Flash-message toasts (P1g) — top-right stack, auto-dismiss.
+   ============================================================ */
+.toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 380px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #fff;
+  background: var(--slate-800);
+  border: 1px solid var(--slate-700);
+  border-left: 3px solid var(--indigo-500);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  transform: translateX(0);
+  opacity: 1;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast--success { border-left-color: var(--emerald-500); }
+.toast--warning { border-left-color: var(--amber-500); }
+.toast--error   { border-left-color: var(--red-500); }
+.toast--info    { border-left-color: var(--indigo-500); }
+.toast--dismissing { opacity: 0; transform: translateX(20px); }
+.toast__msg { flex: 1; }
+.toast__close {
+  background: none;
+  border: 0;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.toast__close:hover { color: #fff; }
+@media (max-width: 640px) {
+  .toast-stack { left: 8px; right: 8px; max-width: none; }
+}
+
+
+/* ============================================================
+   Empty states (P1d) — shown when a list is empty.
+   Used both inline (inside <tbody> as a full-row td) and as a
+   stand-alone panel where lists aren't table-based.
+   ============================================================ */
+.empty-state {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--slate-400);
+}
+.empty-state__icon {
+  font-size: 32px;
+  opacity: 0.6;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+.empty-state__title {
+  font-size: 15px;
+  color: var(--slate-200);
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+.empty-state__body {
+  font-size: 13px;
+  color: var(--slate-400);
+  margin: 0 0 16px;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.empty-state .btn { display: inline-block; }
+td.empty-state-cell { padding: 32px 16px !important; text-align: center; color: var(--slate-400); font-size: 13px; }
+
+
+/* ============================================================
+   Submit-guard spinner (P1c) — shown on any button while its
+   form is submitting so users get feedback and can't double-click.
+   ============================================================ */
+.is-submitting { opacity: 0.7; cursor: progress !important; }
+.is-submitting .spinner,
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ag-spin 0.75s linear infinite;
+}
+@keyframes ag-spin { to { transform: rotate(360deg); } }
+
+
+/* ============================================================
+   Responsive breakpoints (P1b — MVP polish)
+
+   Two tiers:
+     - ≤ 900px  (tablets, small laptops, narrow windows)
+     - ≤ 640px  (phones)
+
+   Nothing above 900px changes.
+   ============================================================ */
+
+@media (max-width: 900px) {
+  /* Top nav — allow wrapping, tighten spacing, hide the tagline */
+  .topnav {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 8px 14px;
+    height: auto;
+  }
+  .topnav__subtitle { display: none; }
+  .topnav__links {
+    flex: 1 1 100%;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .topnav__link { padding: 6px 10px; font-size: 13px; }
+  .topnav__consultant { font-size: 12px; }
+
+  /* Dropdown menus on tap-devices — align to right edge so they don't clip */
+  .topnav__menu { min-width: 180px; }
+
+  /* Top search bar */
+  .topbar {
+    padding: 0 14px;
+    gap: 10px;
+  }
+  .topbar__search { max-width: none; }
+  .topbar__tenant-label { display: none; }
+  .topbar__user > div:not(.topbar__avatar) { display: none; }
+
+  /* Content padding */
+  .app-content { padding: 16px; }
+  .page-wrap { padding: 0; }
+
+  /* Tables — horizontal scroll instead of blowing out the page */
+  .app-content table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hero row (dashboard welcome) */
+  .hero__logo-img { height: 40px; }
+}
+
+
+@media (max-width: 640px) {
+  /* Even tighter — phone widths */
+  .topnav { padding: 6px 10px; gap: 8px; }
+  .topnav__logo-img { height: 32px; }
+  .topnav__title { font-size: 13px; }
+  .topnav__consultant { display: none; }
+  .topnav__link { padding: 6px 8px; font-size: 12px; }
+
+  .topbar {
+    height: auto;
+    padding: 8px 10px;
+    flex-wrap: wrap;
+  }
+  .topbar__search { flex: 1 1 100%; order: 3; }
+  .topbar__bell { padding: 6px; font-size: 14px; }
+  .topbar__tenant { padding: 2px 6px; font-size: 11px; }
+  .topbar__logout { padding: 4px 8px; font-size: 10px; }
+
+  .app-content { padding: 12px; }
+
+  /* Stat + card grids: force single column even where the default is auto-fit */
+  .stat-grid,
+  .compliance-grid,
+  .quick-actions,
+  .profile-row,
+  .policy-grid,
+  .learning-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Buttons in card rows shouldn't force horizontal scroll */
+  .card { padding: 14px; }
+}
+

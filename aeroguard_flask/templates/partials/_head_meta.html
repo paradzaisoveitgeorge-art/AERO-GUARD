@@ -1,0 +1,24 @@
+{# Shared favicon + Open Graph / Twitter card metadata. Include from
+   the <head> of every top-level shell (base.html, auth/_layout.html,
+   smartpoint.html). Override `og_title` / `og_description` from the
+   parent template if you want a page-specific card. #}
+{% set _logo = url_for('static', filename='img/aero-guard-logo.png', _external=True) %}
+{% set _og_title = og_title | default("AERO-GUARD — Compliance in Motion, Profit in Motive") %}
+{% set _og_desc  = og_description | default("Fare-rule compliance and revenue protection for travel agencies. Catch ADMs before ticketing, automate DOCS SSR, and audit every action from one console.") %}
+
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='img/aero-guard-logo.png') }}" />
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='img/aero-guard-logo.png') }}" />
+
+<meta name="description" content="{{ _og_desc }}" />
+<meta name="theme-color" content="#0b1226" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="{{ _og_title }}" />
+<meta property="og:description" content="{{ _og_desc }}" />
+<meta property="og:image" content="{{ _logo }}" />
+<meta property="og:site_name" content="AERO-GUARD" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="{{ _og_title }}" />
+<meta name="twitter:description" content="{{ _og_desc }}" />
+<meta name="twitter:image" content="{{ _logo }}" />

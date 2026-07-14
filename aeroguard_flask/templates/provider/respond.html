@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}AERO-GUARD &middot; Respond to Clients{% endblock %}
+{% block title %}Respond &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
 <div class="page-header">
@@ -20,6 +20,12 @@
       <div class="thread-item__agent">{{ t.agent }}</div>
       <div class="thread-item__last">{{ t.last }}</div>
     </a>
+    {% else %}
+    <div class="empty-state" style="padding: 32px 16px;">
+      <div class="empty-state__icon">&#128172;</div>
+      <div class="empty-state__title">No open threads</div>
+      <div class="empty-state__body">When a client agent messages you, their thread will appear here.</div>
+    </div>
     {% endfor %}
   </div>
 

@@ -1,0 +1,13 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Sign out · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Sign out?</h1>
+  <p class="subtitle">You'll need to sign in again to get back to your dashboard.</p>
+  <form method="post" action="{{ url_for('logout') }}" style="margin-top:18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn-primary">Sign out</button>
+  </form>
+  <div class="footer-link" style="margin-top:14px;">
+    <a href="{{ url_for('smartpoint_demo') if not current_user.is_provider_staff() else url_for('provider_dashboard') }}">← Cancel and go back</a>
+  </div>
+{% endblock %}

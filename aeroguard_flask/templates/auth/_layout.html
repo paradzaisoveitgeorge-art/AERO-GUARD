@@ -4,7 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}AERO-GUARD{% endblock %}</title>
+  {% include "partials/_head_meta.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}" />
+  <script src="{{ url_for('static', filename='js/submit-guard.js') }}" defer></script>
 </head>
 <body>
   <div class="auth-wrap">
@@ -17,5 +19,6 @@
       {% block body %}{% endblock %}
     </div>
   </div>
+  {% include "partials/_flash_toasts.html" %}
 </body>
 </html>

@@ -1,0 +1,28 @@
+{# Renders flashed messages as a stack of dismissible toasts, top-right.
+   Include from every top-level shell so flashes surface no matter which
+   page rendered them. Categories: success | info | warning | error.
+   Backwards-compatible with the legacy "info" category used earlier. #}
+{% with msgs = get_flashed_messages(with_categories=true) %}
+{% if msgs %}
+<div class="toast-stack" role="status" aria-live="polite">
+  {% for cat, msg in msgs %}
+  {% set variant = 'success' if cat == 'success'
+                   else ('error' if cat in ('error', 'danger')
+                   else ('warning' if cat == 'warning' else 'info')) %}
+  <div class="toast toast--{{ variant }}" data-toast>
+    <span class="toast__msg">{{ msg }}</span>
+    <button type="button" class="toast__close" aria-label="Dismiss" onclick="this.parentElement.remove()">&times;</button>
+  </div>
+  {% endfor %}
+</div>
+<script>
+  // Auto-dismiss each toast after 4s with a subtle fade.
+  document.querySelectorAll('.toast-stack [data-toast]').forEach(function (el, i) {
+    setTimeout(function () {
+      el.classList.add('toast--dismissing');
+      setTimeout(function () { el.remove(); }, 300);
+    }, 4000 + i * 150);
+  });
+</script>
+{% endif %}
+{% endwith %}
