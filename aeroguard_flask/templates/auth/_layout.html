@@ -10,11 +10,9 @@
   <div class="auth-wrap">
     <div class="auth-card">
       <div class="auth-brand">
-        <div class="ag-badge">AG</div>
-        <div>
-          <div class="brand-text">AERO-GUARD</div>
-          <div class="brand-tag">Provider Console</div>
-        </div>
+        <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+             alt="AERO-GUARD" class="auth-brand__logo" />
+        <div class="brand-tag">Provider Console</div>
       </div>
       {% block body %}{% endblock %}
     </div>

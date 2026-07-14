@@ -89,7 +89,14 @@
       "Bash(git ls-remote *)",
       "Bash(ls -lat \"/c/Users/CLYK/AppData/Local/Temp/claude\" 2>/dev/null | head -20; echo \"---\"; find \"/c/Users/CLYK/AppData/Local/Temp\" -maxdepth 3 -name \"*.png\" -mmin -10 2>/dev/null | head)",
       "Bash(FLASK_APP=app python -m flask db upgrade)",
-      "Bash(FLASK_APP=app python -m flask reset-demo)"
+      "Bash(FLASK_APP=app python -m flask reset-demo)",
+      "Bash(git tag -a v0.2.0 -m ' *)",
+      "Bash(ls -la \"aeroguard_flask/static/img/aero-guard-logo.png\" 2>&1; echo \"---\"; stat -c \"%y  %s bytes\" \"aeroguard_flask/static/img/aero-guard-logo.png\" 2>&1)",
+      "Bash(stat -c \"%y  %s bytes\" \"aeroguard_flask/static/img/aero-guard-logo.png\")",
+      "Bash(curl -s -o /dev/null -w \"local server: HTTP %{http_code}\\\\n\" http://localhost:5050/login)",
+      "Bash(cloudflared --version)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://blocking-cover-yourself-claims.trycloudflare.com/login)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
