@@ -1040,6 +1040,82 @@ def remove_user(user_id):
     return redirect(request.referrer or url_for("provider_users"))
 
 
+@app.route("/provider/users/<user_id>/reset-link", methods=["POST"])
+@require("user:reset_password")
+def issue_reset_link(user_id):
+    """Admin recovery: mint a fresh reset token for a user and either email
+    it or surface it inline (when SMTP isn't configured), so an admin can
+    help someone whose email is unreachable."""
+    import secrets as _secrets
+
+    u = get_owned_or_404(User, user_id)
+    token = _secrets.token_urlsafe(24)
+    u.reset_token = token
+    u.reset_expires = datetime.utcnow() + timedelta(hours=2)
+    db.session.commit()
+    link = url_for("reset_password", token=token, _external=True)
+
+    email_sent = send_email(
+        to=u.email,
+        subject="Your AERO-GUARD password was reset by an admin",
+        text=(
+            f"Hi {u.name},\n\n"
+            f"An administrator ({getattr(current_user, 'name', 'AERO-GUARD')}) "
+            "issued a password-reset link for your account. Follow the link "
+            "below within the next 2 hours to set a new password:\n\n"
+            f"{link}\n\n"
+            "If you didn't expect this, contact your provider admin.\n\n"
+            "— AERO-GUARD"
+        ),
+        html=(
+            f"<p>Hi {u.name},</p>"
+            f"<p>An administrator (<strong>{getattr(current_user, 'name', 'AERO-GUARD')}</strong>) "
+            "issued a password-reset link for your account. Follow the link "
+            "below within the next 2 hours to set a new password:</p>"
+            f'<p><a href="{link}">{link}</a></p>'
+            "<p>If you didn't expect this, contact your provider admin.</p>"
+            "<p>&mdash; AERO-GUARD</p>"
+        ),
+    )
+    write_audit(
+        "USER_RESET_LINK_ISSUED", "user", u.id,
+        note=f"emailed={email_sent}",
+    )
+    db.session.commit()
+    if email_sent:
+        flash(f"Reset link emailed to {u.email} (valid 2 hours).", "success")
+    else:
+        # Dev / SMTP-unset — hand the link to the admin so they can share it out-of-band.
+        flash(
+            f"Reset link for {u.email} (valid 2 hours) — email isn't configured, "
+            f"share this URL out-of-band: {link}",
+            "info",
+        )
+    return redirect(request.referrer or url_for("provider_users"))
+
+
+@app.route("/provider/users/<user_id>/reset-mfa", methods=["POST"])
+@require("user:reset_mfa")
+def reset_user_mfa(user_id):
+    """Admin recovery: clear a user's MFA enrollment so they can sign in
+    with just their password and re-enrol from a device they control."""
+    u = get_owned_or_404(User, user_id)
+    if not u.mfa_secret and not u.mfa:
+        flash(f"{u.name} doesn't have MFA enabled.", "info")
+        return redirect(request.referrer or url_for("provider_users"))
+    u.mfa_secret = None
+    u.mfa_backup_codes = None
+    u.mfa = False
+    write_audit("USER_MFA_RESET", "user", u.id, note=u.email)
+    db.session.commit()
+    flash(
+        f"MFA cleared for {u.email}. They can now sign in with password "
+        "only and re-enrol from their device.",
+        "success",
+    )
+    return redirect(request.referrer or url_for("provider_users"))
+
+
 # --- Routes: audits ------------------------------------------------------
 
 @app.route("/provider/audits")
