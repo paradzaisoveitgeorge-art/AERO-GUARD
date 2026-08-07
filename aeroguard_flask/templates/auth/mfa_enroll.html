@@ -1,0 +1,29 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Enable two-factor · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Enable two-factor</h1>
+  <p class="subtitle">Scan the QR with your authenticator app (Google Authenticator, Authy, 1Password, Microsoft Authenticator), then enter the 6-digit code it shows.</p>
+
+  {% if error %}<div class="alert alert-err">{{ error }}</div>{% endif %}
+
+  <div style="display:flex; flex-direction:column; align-items:center; gap:12px; padding:20px 0;">
+    <img src="{{ qr_data_uri }}" alt="Scan this QR code with your authenticator app" style="width:180px; height:180px; background:white; border-radius:8px; padding:8px;" />
+    <details style="font-size:12px; color: var(--auth-muted);">
+      <summary style="cursor:pointer;">Can't scan? Show the secret to type in.</summary>
+      <code style="display:block; margin-top:8px; padding:8px; background:rgba(255,255,255,0.05); border-radius:6px; font-family: var(--font-mono, ui-monospace); word-break:break-all;">{{ secret }}</code>
+    </details>
+  </div>
+
+  <form method="post" action="{{ url_for('mfa_enroll') }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="field">
+      <label for="code">6-digit code from the app</label>
+      <input id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" autocomplete="one-time-code" maxlength="6" required autofocus placeholder="123456" />
+    </div>
+    <button class="btn" type="submit">Activate two-factor</button>
+  </form>
+
+  <div class="footer-link" style="margin-top:14px;">
+    <a href="{{ url_for('smartpoint_demo') if not current_user.is_provider_staff() else url_for('provider_dashboard') }}">&larr; Skip for now</a>
+  </div>
+{% endblock %}

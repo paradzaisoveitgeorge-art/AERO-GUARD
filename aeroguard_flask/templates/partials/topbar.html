@@ -3,16 +3,41 @@
     <span class="topbar__search-icon">&#8981;</span>
     <input type="text" placeholder="Search agencies, PNRs, tickets&hellip;" />
   </div>
-  <button class="topbar__bell" aria-label="Notifications" title="3 unread service alerts">
-    &#128276;
-    <span class="topbar__bell-dot"></span>
-  </button>
-  {% if current_provider %}
-  <div class="topbar__tenant" title="You are operating in the {{ current_provider.name }} tenant">
-    <span class="topbar__tenant-label">Tenant</span>
-    <span class="topbar__tenant-name">{{ current_provider.name }}</span>
-  </div>
-  {% endif %}
+
+  {% set _alerts = topbar_alerts_count | default(0) %}
+  {% set _chat = topbar_chat_unread | default(0) %}
+  <nav class="topbar__icons" aria-label="Quick actions">
+    <a class="topbar__ico" href="{{ url_for('provider_escalations') }}"
+       aria-label="Alerts" title="Open escalations">
+      &#128276;
+      {% if _alerts > 0 %}
+      <span class="topbar__ico-badge">{{ _alerts if _alerts < 10 else '9+' }}</span>
+      {% endif %}
+    </a>
+    <a class="topbar__ico" href="{{ url_for('provider_respond') }}"
+       aria-label="Chat" title="Client conversations">
+      &#128172;
+      {% if _chat > 0 %}
+      <span class="topbar__ico-badge">{{ _chat if _chat < 10 else '9+' }}</span>
+      {% endif %}
+    </a>
+    <a class="topbar__ico" href="{{ url_for('provider_policies') }}"
+       aria-label="Settings" title="Policies &amp; settings">
+      &#9881;
+    </a>
+    <button type="button" class="topbar__ico" onclick="document.getElementById('about-modal').style.display='flex'"
+            aria-label="About" title="About AERO-GUARD">
+      &#9432;
+    </button>
+    {% if current_provider %}
+    <a class="topbar__pcc" href="{{ url_for('provider_emulate') }}"
+       title="Current tenant &mdash; click to switch">
+      <span class="topbar__pcc-label">PCC</span>
+      <span class="topbar__pcc-name">{{ current_provider.name }}</span>
+    </a>
+    {% endif %}
+  </nav>
+
   <div class="topbar__user">
     {% set initials = (current_user.name.split()[0][0] ~ current_user.name.split()[-1][0]) if current_user.is_authenticated and current_user.name else 'AG' %}
     <div class="topbar__avatar">{{ initials | upper }}</div>
@@ -20,7 +45,12 @@
       <div class="topbar__user-name">{{ current_user.name if current_user.is_authenticated else 'Guest' }}</div>
       <div class="topbar__user-role">
         {% if current_user.is_authenticated %}
-          {{ current_user.role }}{% if current_user.mfa %} &middot; MFA verified{% endif %}
+          {{ current_user.role }}
+          {% if current_user.mfa_secret %}
+            &middot; <span title="Two-factor is enabled on this account" style="color: var(--emerald-500);">MFA on</span>
+          {% else %}
+            &middot; <a href="{{ url_for('mfa_enroll') }}" style="color: var(--amber-500);" title="Recommended — protect your account with a second factor">Enable MFA</a>
+          {% endif %}
         {% else %}—{% endif %}
       </div>
     </div>
@@ -32,3 +62,31 @@
     {% endif %}
   </div>
 </header>
+
+<div id="about-modal" class="about-modal" style="display:none;"
+     onclick="if(event.target===this)this.style.display='none'">
+  <div class="about-modal__card">
+    <div class="about-modal__header">
+      <div class="about-modal__brand">
+        <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}"
+             alt="" class="about-modal__logo" />
+        <div>
+          <div class="about-modal__name">AERO-GUARD</div>
+          <div class="about-modal__sub">Compliance &amp; Fare-Rule Guardrail</div>
+        </div>
+      </div>
+      <button type="button" class="about-modal__close"
+              onclick="document.getElementById('about-modal').style.display='none'"
+              aria-label="Close">&times;</button>
+    </div>
+    <div class="about-modal__body">
+      <p><strong>Version</strong> &middot; v0.4.0</p>
+      <p><strong>Environment</strong> &middot; {{ 'Production' if config.DEBUG == false else 'Development' }}</p>
+      <p>ADM-prevention layer for Travelport Smartpoint. Monitors PNRs in real time,
+         auto-fixes rule breaches, and streams incident evidence to the provider console.</p>
+      <p style="color:var(--slate-500); font-size:12px; margin-top:12px;">
+        &copy; AERO-GUARD &middot; support@aero-guard.io
+      </p>
+    </div>
+  </div>
+</div>

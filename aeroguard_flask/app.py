@@ -15,6 +15,8 @@ keeps working; the schema is already correct for tenant scoping later.
 """
 from __future__ import annotations
 
+import base64
+import io
 import os
 import random
 import secrets
@@ -30,6 +32,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     url_for,
 )
 from flask_limiter import Limiter
@@ -60,6 +63,7 @@ from models import (
     db,
 )
 from permissions import can, require
+from mailer import send_email, is_configured as mail_is_configured
 
 # Load .env if present (no-op in production where vars come from the host)
 load_dotenv()
@@ -126,11 +130,23 @@ limiter = Limiter(get_remote_address, app=app, default_limits=[])
 def inject_user():
     """Make ``current_user`` + permission helpers available in every template."""
     provider = None
+    alerts_count = 0
+    chat_unread = 0
     if current_user.is_authenticated and current_user.provider_id:
         provider = Provider.query.get(current_user.provider_id)
+        alerts_count = Escalation.query.filter_by(
+            provider_id=current_user.provider_id, status="OPEN"
+        ).count()
+        chat_unread = (
+            db.session.query(db.func.coalesce(db.func.sum(Thread.unread), 0))
+            .filter(Thread.provider_id == current_user.provider_id)
+            .scalar()
+        ) or 0
     return {
         "current_user": current_user,
         "current_provider": provider,
+        "topbar_alerts_count": alerts_count,
+        "topbar_chat_unread": int(chat_unread),
         "can": lambda action: can(current_user, action),
         "humanize": humanize,
         "humanize_sla": humanize_sla,
@@ -139,7 +155,7 @@ def inject_user():
 
 # Public endpoints that never require login. Everything else under
 # /provider/* and / is locked down by the before_request guard below.
-PUBLIC_ENDPOINTS = {"login", "logout", "forgot", "reset_password", "healthz", "static"}
+PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "static"}
 
 
 @app.errorhandler(403)
@@ -384,6 +400,21 @@ def _landing_url_for(user: User) -> str:
 
 # --- Routes: auth ---------------------------------------------------------
 
+def _finalize_login(user, remember: bool, next_url: str):
+    """Complete a successful login and route the user to their landing page."""
+    login_user(user, remember=remember)
+    user.last_login_at = datetime.utcnow()
+    user.last_login = "now"  # legacy display string kept in sync
+    db.session.commit()
+    session.pop("mfa_pending_user_id", None)
+    session.pop("mfa_pending_remember", None)
+    session.pop("mfa_pending_next", None)
+    # Only honour next_url if it's a local path (open-redirect guard).
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(_landing_url_for(user))
+
+
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
 def login():
@@ -403,17 +434,223 @@ def login():
             error = "Invalid email or password."
         elif not user.active:
             error = "This account is disabled. Contact your administrator."
+        elif user.mfa_secret:
+            # Password OK, but MFA is enrolled — stash context and challenge.
+            session["mfa_pending_user_id"] = user.id
+            session["mfa_pending_remember"] = remember
+            session["mfa_pending_next"] = next_url
+            return redirect(url_for("login_mfa"))
         else:
-            login_user(user, remember=remember)
-            user.last_login_at = datetime.utcnow()
-            user.last_login = "now"  # legacy display string kept in sync
-            db.session.commit()
-            # Only honour next_url if it's a local path (open-redirect guard).
-            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
-                return redirect(next_url)
-            return redirect(_landing_url_for(user))
+            return _finalize_login(user, remember, next_url)
 
     return render_template("auth/login.html", error=error, next=next_url)
+
+
+@app.route("/login/mfa", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
+def login_mfa():
+    """Second-factor challenge after a successful password step.
+
+    Accepts either the live TOTP code from the authenticator app OR one
+    of the user's single-use backup codes — the latter is consumed on
+    use so a stolen sheet has a short shelf life.
+    """
+    import pyotp
+
+    pending_id = session.get("mfa_pending_user_id")
+    if not pending_id:
+        return redirect(url_for("login"))
+    user = User.query.get(pending_id)
+    if user is None or not user.mfa_secret or not user.active:
+        session.pop("mfa_pending_user_id", None)
+        return redirect(url_for("login"))
+
+    error = None
+    if request.method == "POST":
+        raw = (request.form.get("code") or "").strip()
+        totp_code = raw.replace(" ", "")
+        totp = pyotp.TOTP(user.mfa_secret)
+        # `valid_window=1` accepts the previous 30s step too (clock skew).
+        totp_ok = totp.verify(totp_code, valid_window=1)
+        backup_ok = False
+        if not totp_ok:
+            backup_ok = user.consume_backup_code(raw)
+        if totp_ok or backup_ok:
+            if backup_ok:
+                # Persist the consumed code + note it in the audit log
+                # so a real user can trace unexpected uses later.
+                db.session.commit()
+                write_audit(
+                    "MFA_BACKUP_CODE_USED", "user", user.id,
+                    note=f"remaining={user.mfa_backup_codes_remaining}",
+                )
+                db.session.commit()
+                # Warn them if they're running low.
+                if user.mfa_backup_codes_remaining <= 2:
+                    flash(
+                        f"You have {user.mfa_backup_codes_remaining} backup "
+                        "code(s) left. Generate a fresh set after signing in.",
+                        "info",
+                    )
+            remember = bool(session.get("mfa_pending_remember"))
+            next_url = session.get("mfa_pending_next") or ""
+            return _finalize_login(user, remember, next_url)
+        error = "That code is not valid. Try again — codes rotate every 30 seconds."
+
+    return render_template("auth/mfa_challenge.html", error=error, email=user.email)
+
+
+@app.route("/login/mfa/cancel", methods=["POST"])
+def login_mfa_cancel():
+    """Abandon the MFA challenge and return to the password screen."""
+    session.pop("mfa_pending_user_id", None)
+    session.pop("mfa_pending_remember", None)
+    session.pop("mfa_pending_next", None)
+    return redirect(url_for("login"))
+
+
+def _generate_backup_codes(n: int = 10) -> list[str]:
+    """Return `n` fresh 8-char uppercase-hex recovery codes.
+
+    Displayed to the user hyphenated (e.g. `A3F1-B7C2`) for readability;
+    matching in `User.consume_backup_code` strips the hyphen.
+    """
+    import secrets as _secrets
+    return [_secrets.token_hex(4).upper() for _ in range(n)]
+
+
+@app.route("/account/mfa/enroll", methods=["GET", "POST"])
+@login_required
+def mfa_enroll():
+    """Show a QR + secret for the user to scan, then verify a code to activate."""
+    import pyotp
+    import qrcode
+
+    # Reuse an in-progress secret in the session so refreshing the page
+    # doesn't reset the QR (which would break Authenticator setup).
+    pending_secret = session.get("mfa_enroll_secret")
+    if not pending_secret:
+        pending_secret = pyotp.random_base32()
+        session["mfa_enroll_secret"] = pending_secret
+
+    error = None
+    if request.method == "POST":
+        code = (request.form.get("code") or "").strip().replace(" ", "")
+        totp = pyotp.TOTP(pending_secret)
+        if totp.verify(code, valid_window=1):
+            current_user.mfa_secret = pending_secret
+            current_user.mfa = True
+            # Generate + persist backup codes here (only chance to
+            # show them in plaintext — after this we only ever hold
+            # the hashes).
+            plain_codes = _generate_backup_codes()
+            current_user.set_backup_codes(plain_codes)
+            db.session.commit()
+            write_audit("MFA_ENABLED", "user", current_user.id)
+            db.session.commit()
+            session.pop("mfa_enroll_secret", None)
+            session["mfa_new_backup_codes"] = plain_codes
+            flash("Multi-factor authentication is now enabled.", "success")
+            return redirect(url_for("mfa_recovery_codes"))
+        error = "That code is not valid. Try again — codes rotate every 30 seconds."
+
+    # Build a provisioning URI for the authenticator app.
+    provisioning_uri = pyotp.TOTP(pending_secret).provisioning_uri(
+        name=current_user.email,
+        issuer_name="AERO-GUARD",
+    )
+    # Render the QR code as an inline data-URI PNG so we don't need
+    # a separate endpoint.
+    img = qrcode.make(provisioning_uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+    return render_template(
+        "auth/mfa_enroll.html",
+        qr_data_uri=qr_data_uri,
+        secret=pending_secret,
+        error=error,
+    )
+
+
+@app.route("/account/mfa/disable", methods=["POST"])
+@login_required
+def mfa_disable():
+    """User disables their own MFA. Requires the current TOTP code."""
+    import pyotp
+
+    if not current_user.mfa_secret:
+        flash("MFA isn't enabled on your account.", "info")
+        return redirect(url_for("_landing_url_for_current"))
+
+    code = (request.form.get("code") or "").strip().replace(" ", "")
+    if not pyotp.TOTP(current_user.mfa_secret).verify(code, valid_window=1):
+        flash("Wrong code — MFA was not disabled.", "error")
+        return redirect(url_for("mfa_enroll"))
+
+    current_user.mfa_secret = None
+    current_user.mfa = False
+    # Drop backup codes too — they're only useful when MFA is enabled.
+    current_user.mfa_backup_codes = None
+    db.session.commit()
+    write_audit("MFA_DISABLED", "user", current_user.id)
+    db.session.commit()
+    flash("Multi-factor authentication is now disabled.", "info")
+    return redirect(url_for("_landing_url_for_current"))
+
+
+@app.route("/account/mfa/recovery-codes", methods=["GET", "POST"])
+@login_required
+def mfa_recovery_codes():
+    """One-time display of freshly-generated backup codes.
+
+    Codes come from the session (set on enrollment or regenerate) — we
+    never store them plaintext. POST acknowledges the user saw them and
+    drops them from the session.
+    """
+    codes = session.get("mfa_new_backup_codes")
+    if request.method == "POST":
+        session.pop("mfa_new_backup_codes", None)
+        return redirect(url_for("_landing_url_for_current"))
+    if not codes:
+        # Nothing to reveal — send the user to the MFA page where
+        # they can generate a new set.
+        return redirect(url_for("mfa_enroll"))
+    return render_template("auth/mfa_recovery_codes.html", codes=codes)
+
+
+@app.route("/account/mfa/regenerate-codes", methods=["POST"])
+@login_required
+@limiter.limit("5 per hour")
+def mfa_regenerate_codes():
+    """Issue a fresh set of backup codes. Requires the current TOTP so a
+    hijacked session can't silently rotate codes."""
+    import pyotp
+
+    if not current_user.mfa_secret:
+        flash("MFA isn't enabled on your account.", "info")
+        return redirect(url_for("_landing_url_for_current"))
+
+    code = (request.form.get("code") or "").strip().replace(" ", "")
+    if not pyotp.TOTP(current_user.mfa_secret).verify(code, valid_window=1):
+        flash("Wrong code — recovery codes were not regenerated.", "error")
+        return redirect(url_for("mfa_enroll"))
+
+    plain_codes = _generate_backup_codes()
+    current_user.set_backup_codes(plain_codes)
+    db.session.commit()
+    write_audit("MFA_RECOVERY_REGENERATED", "user", current_user.id)
+    db.session.commit()
+    session["mfa_new_backup_codes"] = plain_codes
+    return redirect(url_for("mfa_recovery_codes"))
+
+
+@app.route("/_go", endpoint="_landing_url_for_current")
+@login_required
+def _landing_url_for_current():
+    """Tiny helper endpoint so url_for('_landing_url_for_current') works."""
+    return redirect(_landing_url_for(current_user))
 
 
 @app.route("/logout", methods=["GET", "POST"])
@@ -432,12 +669,13 @@ def logout():
 @app.route("/forgot", methods=["GET", "POST"])
 @limiter.limit("3 per minute", methods=["POST"])
 def forgot():
-    """Generate a reset token and *display* it on screen — no email yet."""
+    """Issue a reset token and email the link. In dev (no SMTP configured)
+    the link is also shown on-screen so demos still work end-to-end."""
     import secrets as _secrets
 
-    token = None
     reset_link = None
     submitted = False
+    email_sent = False
     if request.method == "POST":
         submitted = True
         email = (request.form.get("email") or "").strip().lower()
@@ -447,21 +685,51 @@ def forgot():
             user.reset_token = token
             user.reset_expires = datetime.utcnow() + timedelta(hours=2)
             db.session.commit()
-            reset_link = url_for("reset_password", token=token, _external=True)
+            link = url_for("reset_password", token=token, _external=True)
+            email_sent = send_email(
+                to=user.email,
+                subject="Reset your AERO-GUARD password",
+                text=(
+                    f"Hi {user.name},\n\n"
+                    "Someone requested a password reset for your AERO-GUARD account. "
+                    "If that was you, follow the link below within the next 2 hours:\n\n"
+                    f"{link}\n\n"
+                    "If it wasn't you, ignore this message — your password stays unchanged.\n\n"
+                    "— AERO-GUARD"
+                ),
+                html=(
+                    f"<p>Hi {user.name},</p>"
+                    "<p>Someone requested a password reset for your AERO-GUARD account. "
+                    "If that was you, follow the link below within the next 2 hours:</p>"
+                    f'<p><a href="{link}">{link}</a></p>'
+                    "<p>If it wasn't you, ignore this message — your password stays unchanged.</p>"
+                    "<p>&mdash; AERO-GUARD</p>"
+                ),
+            )
+            # Only reveal the link on-page when we couldn't actually
+            # send it. Prevents email-enumeration in production.
+            if not email_sent:
+                reset_link = link
     return render_template(
         "auth/forgot.html",
         submitted=submitted,
         reset_link=reset_link,
+        email_sent=email_sent,
+        mail_configured=mail_is_configured(),
     )
 
 
 @app.route("/reset/<token>", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["GET"])   # blunt brute-force of the token itself
+@limiter.limit("5 per minute", methods=["POST"])   # weak-password retry cap on a known token
 def reset_password(token: str):
     user = User.query.filter_by(reset_token=token).first()
+    # A disabled account must not be able to reset its way back in.
     expired = (
         user is None
         or user.reset_expires is None
         or user.reset_expires < datetime.utcnow()
+        or not user.active
     )
     error = None
     done = False
@@ -478,6 +746,30 @@ def reset_password(token: str):
                 user.reset_expires = None
                 db.session.commit()
                 done = True
+                # Confirmation email so a silent account takeover
+                # (attacker with a stolen link) surfaces to the real
+                # owner instead of staying quiet. Best-effort — a mail
+                # failure must not roll back the successful reset.
+                send_email(
+                    to=user.email,
+                    subject="Your AERO-GUARD password was changed",
+                    text=(
+                        f"Hi {user.name},\n\n"
+                        "Your AERO-GUARD password was just changed. If that was you, "
+                        "no action is needed.\n\n"
+                        "If you didn't do this, contact your provider admin right "
+                        "away — someone else may have access to your inbox.\n\n"
+                        "— AERO-GUARD"
+                    ),
+                    html=(
+                        f"<p>Hi {user.name},</p>"
+                        "<p>Your AERO-GUARD password was just changed. If that was you, "
+                        "no action is needed.</p>"
+                        "<p>If you didn't do this, contact your provider admin right "
+                        "away &mdash; someone else may have access to your inbox.</p>"
+                        "<p>&mdash; AERO-GUARD</p>"
+                    ),
+                )
     return render_template("auth/reset.html", expired=expired, error=error, done=done, token=token)
 
 
@@ -652,6 +944,8 @@ def provider_users():
 @app.route("/provider/users/invite", methods=["POST"])
 @require("user:invite")
 def invite_user():
+    import secrets as _secrets
+
     new_id = f"U-{random.randint(10, 99)}"
     email = (request.form.get("email") or f"{new_id.lower()}@example.com").lower()
     # Enforce global email uniqueness without leaking who already owns it.
@@ -662,7 +956,12 @@ def invite_user():
     role = request.form.get("role") or "L1"
     if role not in ("ADMIN", "L2", "L1"):
         role = "L1"
-    db.session.add(User(
+
+    # Invite = create the user with a first-password token (reuses the
+    # reset flow) and email them the activation link. Token lives 7
+    # days so the invite doesn't die overnight.
+    token = _secrets.token_urlsafe(24)
+    new_user = User(
         id=new_id,
         provider_id=current_provider_id(),
         name=name,
@@ -671,9 +970,46 @@ def invite_user():
         active=True,
         mfa=False,
         last_login="never",
-    ))
+        reset_token=token,
+        reset_expires=datetime.utcnow() + timedelta(days=7),
+    )
+    db.session.add(new_user)
     write_audit("USER_INVITE", "user", new_id, note=email)
     db.session.commit()
+
+    link = url_for("reset_password", token=token, _external=True)
+    inviter = getattr(current_user, "name", "your team")
+    provider = Provider.query.get(current_provider_id())
+    provider_name = provider.name if provider else "AERO-GUARD"
+    email_sent = send_email(
+        to=email,
+        subject=f"You're invited to {provider_name} on AERO-GUARD",
+        text=(
+            f"Hi {name},\n\n"
+            f"{inviter} has added you to {provider_name} on AERO-GUARD "
+            f"as a {role} user.\n\n"
+            "Set your password using the link below (valid 7 days):\n\n"
+            f"{link}\n\n"
+            "— AERO-GUARD"
+        ),
+        html=(
+            f"<p>Hi {name},</p>"
+            f"<p><strong>{inviter}</strong> has added you to <strong>{provider_name}</strong> "
+            f"on AERO-GUARD as a <strong>{role}</strong> user.</p>"
+            "<p>Set your password using the link below (valid 7 days):</p>"
+            f'<p><a href="{link}">{link}</a></p>'
+            "<p>&mdash; AERO-GUARD</p>"
+        ),
+    )
+    if email_sent:
+        flash(f"Invite sent to {email}.", "success")
+    else:
+        # Dev mode — surface the link so the admin can hand it over.
+        flash(
+            f"User created. Email isn't configured — share this activation "
+            f"link with {email} (valid 7 days): {link}",
+            "info",
+        )
     return redirect(url_for("provider_users"))
 
 

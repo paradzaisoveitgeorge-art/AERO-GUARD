@@ -8,6 +8,7 @@ visual demo keeps working.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from flask_login import UserMixin
@@ -47,6 +48,14 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False)  # ADMIN | L2 | L1 | CONSULTANT
     active = db.Column(db.Boolean, default=True)
     mfa = db.Column(db.Boolean, default=False)
+    # P3a: real TOTP secret. Set when the user completes MFA enrollment.
+    # We keep `mfa` (the boolean) as the "MFA active" flag; the secret is
+    # only populated after successful enrollment.
+    mfa_secret = db.Column(db.String(64), nullable=True)
+    # P3c: MFA recovery. JSON list of *hashed* one-time backup codes.
+    # Populated on enrollment; each code is consumed on use so a stolen
+    # sheet has a short shelf life. NULL until MFA is enrolled.
+    mfa_backup_codes = db.Column(db.Text, nullable=True)
     last_login = db.Column(db.String(40), default="never")  # legacy display string
     last_login_at = db.Column(db.DateTime, nullable=True)    # Section 6: real timestamp
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -65,6 +74,43 @@ class User(UserMixin, db.Model):
         if not self.password_hash:
             return False
         return check_password_hash(self.password_hash, raw)
+
+    # --- MFA backup codes ------------------------------------------------
+    def set_backup_codes(self, plain_codes: list[str]) -> None:
+        """Persist the *hash* of each plain code; the plaintext is only
+        shown to the user once, at the moment codes are generated."""
+        self.mfa_backup_codes = json.dumps(
+            [generate_password_hash(c) for c in plain_codes]
+        )
+
+    def consume_backup_code(self, raw: str) -> bool:
+        """Return True and remove the code if `raw` matches any stored code.
+
+        Codes are single-use — matching one drops it from storage before
+        the caller commits the session.
+        """
+        if not self.mfa_backup_codes:
+            return False
+        raw = raw.strip().replace("-", "").replace(" ", "").upper()
+        try:
+            hashes = json.loads(self.mfa_backup_codes)
+        except (ValueError, TypeError):
+            return False
+        for i, h in enumerate(hashes):
+            if check_password_hash(h, raw):
+                del hashes[i]
+                self.mfa_backup_codes = json.dumps(hashes)
+                return True
+        return False
+
+    @property
+    def mfa_backup_codes_remaining(self) -> int:
+        if not self.mfa_backup_codes:
+            return 0
+        try:
+            return len(json.loads(self.mfa_backup_codes))
+        except (ValueError, TypeError):
+            return 0
 
     # --- Flask-Login hooks ----------------------------------------------
     @property
