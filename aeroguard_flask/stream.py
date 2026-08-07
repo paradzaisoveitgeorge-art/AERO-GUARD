@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import secrets
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -67,8 +68,10 @@ def _event_adm_caught(db, models, agency):
     agency.month_adms = (agency.month_adms or 0) + 1
     agency.updated_at = datetime.utcnow()
 
-    # PendingIssue catalog entry — visible on dashboard "Pending Issues" tile
-    pid = f"P-S{random.randint(10, 99)}"
+    # PendingIssue catalog entry — visible on dashboard "Pending Issues" tile.
+    # 6 hex chars → ~16M ids; collisions are effectively impossible for a demo,
+    # but if one ever landed the outer try/except would roll back cleanly.
+    pid = f"P-S{secrets.token_hex(3).upper()}"
     db.session.add(models.PendingIssue(
         id=pid,
         agency=agency.name,
