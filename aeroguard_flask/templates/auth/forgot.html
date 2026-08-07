@@ -2,11 +2,21 @@
 {% block title %}Forgot password · AERO-GUARD{% endblock %}
 {% block body %}
   <h1>Reset your password</h1>
-  <p class="subtitle">We'll generate a reset link below. (Email sending arrives later in the MVP.)</p>
+  <p class="subtitle">
+    {% if mail_configured %}
+      We'll email a reset link to your inbox.
+    {% else %}
+      We'll generate a reset link below. (SMTP isn't configured on this environment.)
+    {% endif %}
+  </p>
 
   {% if submitted %}
     <div class="alert alert-info">
-      If an account exists for that email, a reset link has been generated.
+      {% if email_sent %}
+        If an account exists for that email, a reset link is on its way. Check your inbox (valid 2 hours).
+      {% else %}
+        If an account exists for that email, a reset link has been generated.
+      {% endif %}
     </div>
     {% if reset_link %}
       <p style="font-size:12px; color:var(--auth-muted); margin:14px 0 6px;">

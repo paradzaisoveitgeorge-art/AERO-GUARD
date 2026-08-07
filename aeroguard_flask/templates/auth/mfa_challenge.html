@@ -1,0 +1,27 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Two-factor authentication · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Two-factor code</h1>
+  <p class="subtitle">Signing in as <strong>{{ email }}</strong>. Open your authenticator app and enter the current 6-digit code, or use a recovery code if you don't have your device.</p>
+
+  {% if error %}<div class="alert alert-err">{{ error }}</div>{% endif %}
+
+  <form method="post" action="{{ url_for('login_mfa') }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="field">
+      <label for="code">Authenticator or recovery code</label>
+      <input id="code" name="code" autocomplete="one-time-code" required autofocus placeholder="123456 or ABCD-1234" />
+    </div>
+    <button class="btn" type="submit">Verify &amp; sign in</button>
+  </form>
+
+  <form method="post" action="{{ url_for('login_mfa_cancel') }}" style="margin-top:10px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn-link" style="background:none; border:0; color: var(--auth-muted); cursor:pointer; font-size:12px;">&larr; Cancel and use a different account</button>
+  </form>
+
+  <p style="margin-top:16px; font-size:11px; color: var(--auth-muted);">
+    Lost your device? Enter one of the recovery codes you saved when you enrolled — each works once.
+    If you can't find them, contact your provider admin.
+  </p>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Save your recovery codes · AERO-GUARD{% endblock %}
+{% block body %}
+  <h1>Save your recovery codes</h1>
+  <p class="subtitle">
+    Store these somewhere safe &mdash; a password manager, printed and locked away, anywhere but your phone.
+    You'll need one to sign in if you lose your authenticator device. Each code works <strong>once</strong>.
+  </p>
+
+  <div class="alert alert-info" style="margin-top:8px;">
+    We won't show these again. Copy them now.
+  </div>
+
+  <div class="recovery-grid">
+    {% for c in codes %}
+      <code class="recovery-code">{{ c[:4] }}-{{ c[4:] }}</code>
+    {% endfor %}
+  </div>
+
+  <div style="display:flex; gap:8px; margin-top:14px;">
+    <button type="button" class="btn-link" onclick="copyCodes(this)"
+            style="flex:1; padding:8px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; background:transparent; color:inherit; cursor:pointer; font-size:12px;">
+      Copy all
+    </button>
+    <button type="button" class="btn-link" onclick="window.print()"
+            style="flex:1; padding:8px; border:1px solid rgba(255,255,255,0.12); border-radius:6px; background:transparent; color:inherit; cursor:pointer; font-size:12px;">
+      Print
+    </button>
+  </div>
+
+  <form method="post" action="{{ url_for('mfa_recovery_codes') }}" style="margin-top:14px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button class="btn" type="submit">I've saved them &mdash; continue</button>
+  </form>
+
+  <textarea id="recovery-plain" readonly style="position:absolute; left:-9999px;">{% for c in codes %}{{ c[:4] }}-{{ c[4:] }}
+{% endfor %}</textarea>
+
+  <style>
+    .recovery-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
+    }
+    .recovery-code {
+      display: block;
+      padding: 8px 10px;
+      font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      background: rgba(0,0,0,0.25);
+      border-radius: 4px;
+      user-select: all;
+    }
+  </style>
+
+  <script>
+    function copyCodes(btn) {
+      var ta = document.getElementById('recovery-plain');
+      ta.select();
+      try {
+        document.execCommand('copy');
+        var original = btn.textContent;
+        btn.textContent = 'Copied ✓';
+        setTimeout(function () { btn.textContent = original; }, 1500);
+      } catch (_) { /* fallback: user copies manually */ }
+    }
+  </script>
+{% endblock %}

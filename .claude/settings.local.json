@@ -100,7 +100,20 @@
       "Bash(git merge *)",
       "Bash(curl -s -o /dev/null -w \"GET /nonexistent  %{http_code}\\\\n\" http://localhost:5050/nonexistent)",
       "Bash(curl -s -o /dev/null -w \"GET /logout       %{http_code}  \\(redirect: %{redirect_url}\\)\\\\n\" http://localhost:5050/logout)",
-      "Bash(curl -s -o /dev/null -w \"POST /logout      %{http_code}\\\\n\" -X POST http://localhost:5050/logout)"
+      "Bash(curl -s -o /dev/null -w \"POST /logout      %{http_code}\\\\n\" -X POST http://localhost:5050/logout)",
+      "Bash(tee scratchpad/cf-tunnel.log)",
+      "Bash(curl -sS -o /dev/null -w \"local=%{http_code}\\\\n\" http://localhost:5050/login)",
+      "Bash(curl -sSI --max-time 10 -H \"Host: receives-motivation-realtor-idle.trycloudflare.com\" https://receives-motivation-realtor-idle.trycloudflare.com/login)",
+      "Bash(curl -sS -o /dev/null -w \"tunnel=%{http_code}\\\\n\" -L https://receives-motivation-realtor-idle.trycloudflare.com/login)",
+      "Bash(python -m flask --app app db upgrade)",
+      "Bash(curl -sS -o /dev/null -w \"login=%{http_code}\\\\nforgot=%{http_code}\\\\n\" http://localhost:5050/login http://localhost:5050/forgot)",
+      "Bash(curl -sS -o /dev/null -w \"enroll=%{http_code}\\\\ncodes=%{http_code}\\\\nregen=%{http_code}\\\\n\" http://localhost:5050/account/mfa/enroll http://localhost:5050/account/mfa/recovery-codes -X POST http://localhost:5050/account/mfa/regenerate-codes)",
+      "Bash(curl -sS -o /dev/null -w \"enroll_GET=%{http_code}\\\\n\" http://localhost:5050/account/mfa/enroll)",
+      "Bash(curl -sS -o /dev/null -w \"codes_GET=%{http_code}\\\\n\" http://localhost:5050/account/mfa/recovery-codes)",
+      "Bash(curl -sS -o /dev/null -w \"regen_POST=%{http_code}\\\\n\" -X POST http://localhost:5050/account/mfa/regenerate-codes)",
+      "Bash(python -c \"import pyotp, qrcode; print\\('pyotp:', pyotp.random_base32\\(\\)[:8]+'...', 'qrcode ok'\\)\")",
+      "Bash(python -c \"from flask_migrate import Migrate; from app import app, db; from flask_migrate import current, heads; ctx = app.app_context\\(\\); ctx.push\\(\\); import subprocess; print\\(subprocess.check_output\\(['flask', '--app', 'app.py', 'db', 'current']\\).decode\\(\\)\\)\")",
+      "Bash(\"C:/Program Files \\(x86\\)/cloudflared/cloudflared.exe\" tunnel --url http://127.0.0.1:5050 --no-autoupdate)"
     ]
   }
 }
