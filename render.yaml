@@ -45,3 +45,20 @@ services:
         value: "45"
       - key: AEROGUARD_STREAM_MAX_S
         value: "90"
+      # --- Email (password reset, invites, admin-issued reset links) -----
+      # sync:false → declared here so Render surfaces the field, but the
+      # actual value is set in the Render dashboard (or left blank). When
+      # MAIL_SMTP_HOST is blank the app degrades to the on-page/link-in-toast
+      # fallback and logs the message — see aeroguard_flask/mailer.py.
+      - key: MAIL_SMTP_HOST
+        sync: false
+      - key: MAIL_SMTP_PORT
+        value: "587"
+      - key: MAIL_SMTP_USER
+        sync: false
+      - key: MAIL_SMTP_PASSWORD
+        sync: false
+      - key: MAIL_SMTP_TLS
+        value: "1"
+      - key: MAIL_FROM
+        value: no-reply@aero-guard.io
