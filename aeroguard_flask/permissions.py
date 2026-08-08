@@ -42,10 +42,12 @@ PERMISSIONS: dict[str, set[str]] = {
     "agency:bulk_other":  {ADMIN, L2},
 
     # Helpdesk users
-    "user:view":          PROVIDER_ROLES,
-    "user:invite":        {ADMIN},
-    "user:toggle_active": {ADMIN},
-    "user:remove":        {ADMIN},
+    "user:view":           PROVIDER_ROLES,
+    "user:invite":         {ADMIN},
+    "user:toggle_active":  {ADMIN},
+    "user:remove":         {ADMIN},
+    "user:reset_password": {ADMIN},
+    "user:reset_mfa":      {ADMIN},
 
     # Escalations
     "escalation:view":      PROVIDER_ROLES,

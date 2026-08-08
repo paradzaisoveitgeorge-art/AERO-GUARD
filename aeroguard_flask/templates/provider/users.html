@@ -44,6 +44,20 @@
         <td style="font-size:12px; color: var(--slate-400);">{{ u.last_login }}</td>
         <td class="row-actions">
           <button type="button" class="icon-btn sky" onclick="alert('Audit trail for {{ u.name }} — 142 actions logged')">Audit</button>
+          {% if can('user:reset_password') %}
+          <form method="post" action="{{ url_for('issue_reset_link', user_id=u.id) }}"
+                onsubmit="return confirm('Issue a fresh password-reset link for {{ u.name }}? Any existing link will be invalidated.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="icon-btn sky" title="Mint a new reset link (email or copy)">Reset link</button>
+          </form>
+          {% endif %}
+          {% if u.mfa and can('user:reset_mfa') %}
+          <form method="post" action="{{ url_for('reset_user_mfa', user_id=u.id) }}"
+                onsubmit="return confirm('Clear MFA for {{ u.name }}? They will be able to sign in with password only until they re-enrol.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="icon-btn amber" title="Remove MFA enrolment for this user">Clear MFA</button>
+          </form>
+          {% endif %}
           {% if can('user:toggle_active') %}
           <form method="post" action="{{ url_for('toggle_user_active', user_id=u.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
