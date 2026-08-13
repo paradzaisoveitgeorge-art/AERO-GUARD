@@ -113,7 +113,16 @@
       "Bash(curl -sS -o /dev/null -w \"regen_POST=%{http_code}\\\\n\" -X POST http://localhost:5050/account/mfa/regenerate-codes)",
       "Bash(python -c \"import pyotp, qrcode; print\\('pyotp:', pyotp.random_base32\\(\\)[:8]+'...', 'qrcode ok'\\)\")",
       "Bash(python -c \"from flask_migrate import Migrate; from app import app, db; from flask_migrate import current, heads; ctx = app.app_context\\(\\); ctx.push\\(\\); import subprocess; print\\(subprocess.check_output\\(['flask', '--app', 'app.py', 'db', 'current']\\).decode\\(\\)\\)\")",
-      "Bash(\"C:/Program Files \\(x86\\)/cloudflared/cloudflared.exe\" tunnel --url http://127.0.0.1:5050 --no-autoupdate)"
+      "Bash(\"C:/Program Files \\(x86\\)/cloudflared/cloudflared.exe\" tunnel --url http://127.0.0.1:5050 --no-autoupdate)",
+      "Bash(git tag *)",
+      "Bash(git branch *)",
+      "Read(//c/Users/CLYK/OneDrive/Desktop/**)",
+      "Bash(curl -s -o /dev/null -w \"healthz: HTTP %{http_code}  \\(total %{time_total}s\\)\\\\n\" https://aero-guard-web.onrender.com/healthz --max-time 45)",
+      "Bash(curl -s https://aero-guard-web.onrender.com/healthz --max-time 30)",
+      "Bash(gh repo *)",
+      "Bash(grep -iE \"\\\\.env$|secret|credential|\\\\.pem$|\\\\.key$\")",
+      "Bash(grep -iE \"\\\\.env$|secret|credential\")",
+      "Bash(grep -E \"\\\\.db$|instance/\")"
     ]
   }
 }

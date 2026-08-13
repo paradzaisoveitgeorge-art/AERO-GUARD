@@ -43,7 +43,8 @@
         </td>
         <td style="font-size:12px; color: var(--slate-400);">{{ u.last_login }}</td>
         <td class="row-actions">
-          <button type="button" class="icon-btn sky" onclick="alert('Audit trail for {{ u.name }} — 142 actions logged')">Audit</button>
+          <button type="button" class="icon-btn sky audit-btn"
+                  data-user-id="{{ u.id }}" data-user-name="{{ u.name }}" data-user-email="{{ u.email }}">Audit</button>
           {% if can('user:reset_password') %}
           <form method="post" action="{{ url_for('issue_reset_link', user_id=u.id) }}"
                 onsubmit="return confirm('Issue a fresh password-reset link for {{ u.name }}? Any existing link will be invalidated.')">
@@ -82,6 +83,43 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div id="audit-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-header">
+    <div class="modal-header__left">
+      <button class="modal-header__back" onclick="closeAuditModal()">&larr; Back</button>
+      <span style="color: var(--slate-700);">/</span>
+      <div class="modal-header__title" id="audit-modal-title">Audit trail</div>
+    </div>
+    <button class="modal-header__close" onclick="closeAuditModal()">&times;</button>
+  </div>
+  <div class="modal-body">
+    <p class="field-hint" id="audit-modal-subtitle" style="margin-top:0;">Loading&hellip;</p>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="audit-modal-table" style="display:none;">
+        <thead>
+          <tr>
+            <th style="width:150px;">Time (UTC)</th>
+            <th>Action</th>
+            <th style="width:80px;">Direction</th>
+            <th>Actor</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody id="audit-modal-body"></tbody>
+      </table>
+    </div>
+    <div id="audit-modal-empty" class="empty-state-cell" style="display:none; padding:24px;">
+      <div class="empty-state__icon">&#128196;</div>
+      <div class="empty-state__title">No audit activity yet</div>
+      <div class="empty-state__body">This user hasn't performed any auditable actions, and nothing has been done to their account.</div>
+    </div>
+    <div id="audit-modal-error" class="empty-state-cell" style="display:none; padding:24px; color:#fb7185;">
+      <div class="empty-state__title">Could not load audit trail</div>
+      <div class="empty-state__body" id="audit-modal-error-msg">&mdash;</div>
+    </div>
+  </div>
 </div>
 
 <div id="add-user-modal" class="modal-overlay" style="display:none;">
@@ -132,6 +170,81 @@
 <script>
 function closeAddUserModal() {
   document.getElementById("add-user-modal").style.display = "none";
+}
+
+// Delegated: any .audit-btn click opens the modal with its data-* payload.
+document.addEventListener("click", function (e) {
+  const btn = e.target.closest(".audit-btn");
+  if (!btn) return;
+  openAuditModal(btn.dataset.userId, btn.dataset.userName, btn.dataset.userEmail);
+});
+
+function openAuditModal(userId, userName, userEmail) {
+  const modal = document.getElementById("audit-modal");
+  const title = document.getElementById("audit-modal-title");
+  const subtitle = document.getElementById("audit-modal-subtitle");
+  const table = document.getElementById("audit-modal-table");
+  const tbody = document.getElementById("audit-modal-body");
+  const empty = document.getElementById("audit-modal-empty");
+  const errBox = document.getElementById("audit-modal-error");
+  const errMsg = document.getElementById("audit-modal-error-msg");
+
+  title.textContent = "Audit trail — " + userName;
+  subtitle.textContent = "Loading recent activity for " + userEmail + "…";
+  tbody.innerHTML = "";
+  table.style.display = "none";
+  empty.style.display = "none";
+  errBox.style.display = "none";
+  modal.style.display = "block";
+
+  fetch("/provider/users/" + encodeURIComponent(userId) + "/audit.json", {
+    headers: {"Accept": "application/json"},
+    credentials: "same-origin",
+  })
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      subtitle.textContent = data.count + " row" + (data.count === 1 ? "" : "s")
+        + " for " + data.user.email + " (most recent first, up to " + data.limit + ")";
+      if (!data.entries.length) {
+        empty.style.display = "block";
+        return;
+      }
+      const rows = data.entries.map(function (e) {
+        const dir = e.direction === "did"
+          ? '<span class="gds-chip" style="background:rgba(56,189,248,.15); color:#7dd3fc;" title="This user performed the action">did</span>'
+          : '<span class="gds-chip" style="background:rgba(251,191,36,.15); color:#fbbf24;" title="Action performed on this user">on</span>';
+        return '<tr>'
+          + '<td style="font-size:12px; color: var(--slate-400); white-space:nowrap;">' + escapeHtml(e.time) + '</td>'
+          + '<td style="font-weight:500;">' + escapeHtml(e.action) + '</td>'
+          + '<td>' + dir + '</td>'
+          + '<td style="font-size:12px; color: var(--slate-300);">' + escapeHtml(e.actor) + '</td>'
+          + '<td style="font-size:12px; color: var(--slate-300);">' + escapeHtml(e.note) + '</td>'
+          + '</tr>';
+      });
+      tbody.innerHTML = rows.join("");
+      table.style.display = "";
+    })
+    .catch(function (err) {
+      subtitle.textContent = "";
+      errMsg.textContent = err.message || String(err);
+      errBox.style.display = "block";
+    });
+}
+
+function closeAuditModal() {
+  document.getElementById("audit-modal").style.display = "none";
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function confirmDomain(e) {
