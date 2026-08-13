@@ -1094,6 +1094,53 @@ def issue_reset_link(user_id):
     return redirect(request.referrer or url_for("provider_users"))
 
 
+@app.route("/provider/users/<user_id>/audit.json")
+@require("audit:view")
+def user_audit_json(user_id):
+    """Return the audit trail for a single user — rows where they were the
+    actor OR the target. Used by the "Audit" button modal on the Users page.
+    Tenant-scoped through get_owned_or_404."""
+    u = get_owned_or_404(User, user_id)
+    try:
+        limit = min(max(int(request.args.get("limit", 100)), 1), 500)
+    except ValueError:
+        limit = 100
+
+    rows = (
+        AuditLog.query
+        .filter(AuditLog.provider_id == current_provider_id())
+        .filter(db.or_(
+            AuditLog.actor_user_id == u.id,
+            db.and_(AuditLog.target_type == "user", AuditLog.target_id == u.id),
+        ))
+        .order_by(AuditLog.id.desc())
+        .limit(limit)
+        .all()
+    )
+    # Resolve actor names once — avoids N+1 lookups when rendering.
+    actor_ids = {r.actor_user_id for r in rows if r.actor_user_id}
+    actors = (
+        {a.id: a.name for a in User.query.filter(User.id.in_(actor_ids)).all()}
+        if actor_ids else {}
+    )
+    entries = [{
+        "id": r.id,
+        "time": r.created_at.strftime("%Y-%m-%d %H:%M UTC") if r.created_at else "",
+        "action": r.action,
+        "direction": "did" if r.actor_user_id == u.id else "on",
+        "actor": actors.get(r.actor_user_id) or ("system" if not r.actor_user_id else r.actor_user_id),
+        "target_type": r.target_type or "",
+        "target_id": r.target_id or "",
+        "note": r.note or "",
+    } for r in rows]
+    return jsonify({
+        "user": {"id": u.id, "name": u.name, "email": u.email},
+        "count": len(entries),
+        "limit": limit,
+        "entries": entries,
+    })
+
+
 @app.route("/provider/users/<user_id>/reset-mfa", methods=["POST"])
 @require("user:reset_mfa")
 def reset_user_mfa(user_id):
