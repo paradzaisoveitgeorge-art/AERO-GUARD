@@ -1,0 +1,936 @@
+This three-tier architecture for AERO-GUARD is structurally sound and follows industry-standard B2B SaaS patterns used by travel tech leaders (like Amadeus Selling Platform Connect or Sabre Red 360). By separating the Point-of-Sale (Smart Button), the Operational Backend (Helpdesk), and the Executive Dashboard (Agency Portal), you ensure a clear separation of concerns.
+
+Here is a breakdown of how these components interact to create a cohesive compliance and productivity ecosystem.
+
+
+1. The "AERO-GUARD Smart Button" (Integrated Client)
+This is your User Acquisition & Retention Layer. It lives directly inside the agent’s workflow (GDS or Web-based IBE) to minimize friction.
+
+
+•	Placement: A floating Action Button or Sidebar widget in the GDS (Smartpoint, Sabre Red) or your agency’s mid-office booking engine.
+
+•	Core Functions:
+
+
+o	Real-time Compliance Check: Scans PNRs for mandatory fields (e.g., OSI/SSR entries, passenger passport details, corporate policy adherence).
+
+o	One-Click Validation: Automatically highlights errors (missing data, fare rule violations) before the agent hits "End Transaction."
+
+o	Contextual Assistance: Provides specific ticketing commands or visa requirements based on the route being booked.
+
+•	Tech Stack Note: Implement as a Web Component or GDS Plugin (HTML5/JavaScript) to ensure it can be injected into any browser-based booking interface.
+
+2. The Provider/Helpdesk Side (Operations)
+This is your Support & Quality Assurance Layer. It acts as the bridge between your system’s automated alerts and human intervention.
+
+
+•	Primary Users: Travel Consultants, Agency Supervisors, and System Admins.
+
+•	Core Functions:
+
+
+o	Queue Management: Automatically routes "Flagged Bookings" from the Smart Button to a human queue for correction.
+
+o	Live Case Resolution: A ticketing system where agents can request manual overrides or clarifications on complex fare rules.
+
+o	Audit Logs: A permanent record of who changed what in a PNR, essential for IATA compliance and financial liability protection.
+
+•	KPI Tracking: Average Response Time (ART) and "First-Time Right" booking rates.
+
+3. The AERO-GUARD Agency Portal (Management)
+This is your Decision-Support & Revenue Layer. It transforms raw booking data into actionable business intelligence for agency owners.
+
+
+•	Primary Users: Agency Managers, Finance Departments, and Corporate Account Managers.
+
+•	Core Functions:
+
+
+o	Performance Analytics: Visual dashboards tracking booking volume, top destinations, leakage rates (out-of-policy bookings), and agent productivity.
+
+o	Industry News/Alerts: A curated feed of airline debit memo (ADM) warnings, visa policy changes, and GDS downtime notifications.
+
+o	Configuration Hub: Where managers set custom corporate travel policies (e.g., "Restrict economy class on flights over 6 hours").
+
+o	Financial Reporting: Automated reports on potential savings from policy compliance vs. actual spend.
+
+Summary Architecture Workflow
+Layer	Trigger	Action	Outcome
+Smart Button	Agent inputs PNR	Real-time Validation	Compliant Booking / Instant Error Fix
+Helpdesk	System flags critical error	Human Review/Override	Resolved Discrepancy
+Agency Portal	Data Aggregation	Trend Analysis & Reporting	Optimized ROI & Informed Strategy
+Recommendations for Prototype Development
+Since you are engaging Flightslogic and JomeTech Africa, use this framework to define your API requirements:
+
+
+1.	Middleware API: You need a centralized RESTful API that handles the communication between all three layers.
+
+2.	Webhooks: Ensure the Smart Button sends events (e.g., BOOKING_CREATED, COMPLIANCE_FAILED) to the Helpdesk via webhooks for real-time notification.
+
+3.	Data Warehouse: The Agency Portal should pull data from a separate read-only database to ensure high-speed performance for reporting without slowing down the booking system.
+
+
+To bring the AERO-GUARD Smart Button to life, you need a robust, low-latency API architecture that can ingest Passenger Name Record (PNR) data straight from the booking flow, run validation checks against compliance engines, and return instant visual feedback to the travel agent.
+
+Here is a practical, production-ready JSON API specification designed for your development partners (like Flightslogic or JomeTech Africa).
+
+
+1. Endpoint: PNR Validation Request
+POST /api/v1/compliance/validate
+
+When an agent clicks the Smart Button or when the PNR reaches a specific trigger point (e.g., right before pricing or ending the transaction), the GDS plugin sends the current PNR payload to your central server.
+
+
+Request Payload (application/json)
+JSON
+{
+  "agency_id": "NABI-HRE-004",
+  "agent_id": "SG_PARADZAI",
+  "gds_type": "TRAVELPORT_SMARTPOINT",
+  "pnr_locator": "X7K9LP",
+  "booking_details": {
+    "creation_date": "2026-06-07T14:30:00Z",
+    "itinerary": [
+      {
+        "segment_id": 1,
+        "airline": "ET",
+        "flight_number": "873",
+        "origin": "HRE",
+        "destination": "ADD",
+        "departure_date": "2026-07-15",
+        "class": "E"
+      }
+    ],
+    "passengers": [
+      {
+        "pax_id": 1,
+        "type": "ADT",
+        "name": "SMITH/JOHN MR",
+        "passport_number": null,
+        "passport_expiry": null
+      }
+    ],
+    "elements": {
+      "has_phone": true,
+      "has_email": false,
+      "has_ticketing_tl": true
+    }
+  },
+  "corporate_policy_id": "POL_ZIM_CORP_01"
+}
+2. Response: Validation Results
+HTTP/2 200 OK
+
+The server evaluates the payload against regulatory rules, airline rules, and the client's corporate policy, then returns structured instructions to render directly in the Smart Button widget.
+
+
+Response Payload (application/json)
+JSON
+{
+  "status": "SUCCESS",
+  "compliance_status": "FLAGGED",
+  "summary": {
+    "total_errors": 1,
+    "total_warnings": 2,
+    "block_ticketing": true
+  },
+  "violations": [
+    {
+      "rule_code": "SEC_PASSPORT_MISSING",
+      "severity": "CRITICAL",
+      "category": "Security / API Requirement",
+      "message": "Passenger 1 (SMITH/JOHN MR) is missing API/Passport data required for international route HRE-ADD.",
+      "suggested_action": "Add APIS element using format: SR DOCS ET HK1-P-ZW-12345678-ZW-05MAY85-M-25JAN32-SMITH-JOHN"
+    },
+    {
+      "rule_code": "POL_EMAIL_MISSING",
+      "severity": "WARNING",
+      "category": "Agency Quality Control",
+      "message": "Passenger email address (APEMAIL) is missing from the PNR.",
+      "suggested_action": "Add contact email element."
+    }
+  ],
+  "airline_advisories": [
+    {
+      "airline": "ET",
+      "notice": "ET baggage allowance updated for economy class effective June 2026."
+    }
+  ]
+}
+3. Endpoint: Helpdesk Escalation / Manual Override
+POST /api/v1/compliance/escalate
+
+If a booking fails compliance, but the agent or corporate client grants a valid waiver, the Smart Button can route the issue directly to your Helpdesk Side.
+
+
+Request Payload (application/json)
+JSON
+{
+  "agency_id": "NABI-HRE-004",
+  "agent_id": "SG_PARADZAI",
+  "pnr_locator": "X7K9LP",
+  "reason_for_escalation": "Client corporate policy override requested by travel manager.",
+  "override_code": "AUTH_MGR_992",
+  "attached_notes": "Client will provide passport details 24 hours prior to departure."
+}
+Response Payload (application/json)
+JSON
+{
+  "status": "QUEUED",
+  "ticket_id": "AG-SUP-2026-8942",
+  "message": "Escalation logged. Helpdesk supervisor notified. Average review time: 4 minutes.",
+  "status_url": "/api/v1/tickets/AG-SUP-2026-8942"
+}
+Implementation Tips for Your Developers
+•	Idempotency: Ensure the validation endpoint uses a hash of the PNR string so rapid successive checks (while the agent is actively typing) don't hammer the database.
+
+•	Asynchronous Webhooks: For heavy database operations (like logging analytics to the Agency Portal), have the server acknowledge the request immediately (200 OK) and process analytics logs in the background queue.
+
+
+To effectively manage an agency using AERO-GUARD, your Agency Portal should focus on four pillars: Compliance (Core Value), Operational Efficiency, Financial Health, and Client Experience.
+
+Because AERO-GUARD is a compliance-focused tool, you should prioritize KPIs that demonstrate the "cost of non-compliance" to your clients.
+
+
+1. Compliance & Risk KPIs (The "AERO-GUARD" Value)
+These metrics prove the value of your software to corporate clients by showing how many potential errors or costly violations were prevented.
+
+
+•	Policy Compliance Rate: The percentage of bookings that adhere to corporate travel policies. 
+
+
+o	Formula: $(\text{Compliant Bookings} \div \text{Total Bookings}) \times 100$
+
+•	Leakage Rate: The volume of bookings made outside the approved system (e.g., direct with airlines). High leakage means lost data and lack of duty-of-care coverage.
+
+•	ADM Avoidance (Penalty Savings): The number of potential Airline Debit Memos (ADMs) blocked by your system’s pre-ticketing validation.
+
+•	Safety/Duty of Care Coverage: The percentage of bookings with complete traveler profiles (e.g., emergency contacts, passport details, visa info). 
+
+2. Operational Efficiency KPIs
+These metrics measure how well your agency staff and the AERO-GUARD system are working together to save time. 
+
+
+•	First-Time Right Rate: The percentage of bookings that pass compliance validation on the first attempt without needing manual helpdesk intervention.
+
+•	Helpdesk Resolution Time (ART): The average time taken to resolve a PNR flagged for manual review by your team.
+
+•	Average Booking Lead Time: Tracking how far in advance trips are booked. Lower lead times often correlate with higher costs; this allows you to advise clients to book earlier. 
+
+•	Change & Cancellation Rate: Frequency of itinerary changes. A spike here can indicate unclear project timelines or the need for more flexible booking policies. 
+
+3. Financial & Revenue KPIs
+Use these to show the agency’s profitability and the ROI you generate for the client.
+
+
+•	Total Savings from Negotiated Rates: The amount saved by the client by using preferred vendors or corporate discounts, tracked through your platform. 
+
+•	Cost Per Booking: Total operational cost (labor + system fees) divided by the number of processed bookings.
+
+•	Average Booking Value (ABV): Average revenue generated per reservation. 
+
+•	Booking Volume: Total reservations processed over a specific period (daily, weekly, monthly). 
+
+4. Client Experience KPIs
+These ensure your agency—and your software—is meeting the needs of the actual travelers.
+
+
+•	Traveler Satisfaction Score (CSAT): Post-trip survey results regarding the booking experience. 
+
+•	Booking Tool Adoption Rate: The percentage of employees utilizing your authorized booking flow versus alternative, unmanaged methods. 
+
+Suggested Dashboard View for the Agency Portal
+To keep the dashboard actionable, organize these into a "Traffic Light" system:
+Metric Category	Primary KPI to Display	Why it matters
+Compliance	Policy Compliance %	Immediate visual check on corporate adherence.
+Financial	Total Savings Realized	Proves the ROI of using your agency.
+Operational	Flagged Bookings (Queue)	Shows active work waiting for helpdesk attention.
+Sustainability	Carbon Footprint	Increasingly required for modern corporate reporting.
+
+
+
+To visualize the AERO-GUARD Agency Portal, we will design a "Control Tower" dashboard. The objective is to provide a snapshot of health (Compliance/Revenue) while offering immediate access to critical operational tasks (The Helpdesk Queue).
+
+
+AERO-GUARD Dashboard Wireframe
+This layout uses a Grid System (12-column) to prioritize actionable data at the top and deep-dive analytics below.
+
+
+1. Header (Global Navigation)
+•	Left: AERO-GUARD Logo | Search PNR/Ticket | Notifications (Bell icon with badge)
+
+•	Right: User Profile (Admin) | Settings | Branch Selector (e.g., Harare Office)
+
+2. Top Row: "Pulse" Metrics (KPI Cards)
+Display these as high-contrast cards to show immediate performance.
+
+Card	Value	Trend	Context
+Compliance Rate	94%	+2% ↗	Current monthly corporate policy adherence.
+ADM Avoided	$4,250	+$500 ↗	Estimated savings via pre-ticketing validation.
+Active Queue	12	-3 ↘	Number of PNRs currently awaiting manual review.
+Avg. Ticketing Time	4.2m	-0.5m ↘	Time from PNR creation to ticket issuance.
+3. Middle Section: Operational Action & Trends
+Split the screen 70/30.
+
+Main Area (70%): Policy Performance Chart
+
+
+•	Type: Area Chart (Multi-line)
+
+•	X-Axis: Date (Last 30 days) | Y-Axis: Volume of Bookings
+
+•	Legend: [Compliant Bookings] [Out-of-Policy] [Flagged/Pending]
+
+•	Interaction: Users can hover over the "Out-of-Policy" line to see top reasons (e.g., "Booking outside preferred airline list").
+
+Sidebar (30%): "Priority Queue" (The Helpdesk Link)
+
+
+•	Header: Pending Escalations
+
+•	List Item Format:
+
+
+o	[PNR: X7K9LP] - 15m ago - High Priority
+
+o	[PNR: A1B2C3] - 45m ago - Missing Passport
+
+•	Action: [View All] button linking to the full Helpdesk Module.
+
+4. Bottom Section: Business Intelligence
+Data tables for granular reporting.
+
+Top 5 Corporate Clients (Table)
+
+Client	Bookings	Compliance %	Total Spend
+Nyaradzo Funeral	124	98%	$45,000
+Zimbabwe Tourism	89	82%	$32,000
+Industry News & Alerts (Feed)
+
+
+•	Static widget: Real-time feed from IATA or GDS providers (e.g., "New visa requirements for Zimbabwean travelers to South Africa effective Sept 1st").
+
+Implementation Guide for UI Developers
+When you present this to JomeTech Africa or Flightslogic, provide these functional requirements:
+
+
+•	Responsive Behavior: The "Pulse" cards should stack vertically on mobile (tablet/phone), while the Chart remains full-width.
+
+•	Color Coding (The Traffic Light System):
+
+
+o	Green: $\ge 90\%$ (Healthy)
+
+o	Amber: $75\% - 89\%$ (Warning)
+
+o	Red: $< 75\%$ (Action Required)
+
+•	Dark/Light Mode: Include a toggle. Travel agents working late shifts in different time zones prefer Dark Mode to reduce eye strain.
+
+
+To successfully launch the AERO-GUARD MVP, you should adopt an "Agile Sprint" approach. By focusing on the Smart Button first, you create an immediate feedback loop that provides the raw data needed to populate the Agency Portal.
+
+Here is a 3-month (12-week) development roadmap designed for your collaboration with Flightslogic and JomeTech Africa.
+
+
+Phase 1: Foundation & "Smart Button" Core (Weeks 1–4)
+Goal: Build the GDS hook and the validation engine.
+
+
+•	Weeks 1–2: Backend & Logic.
+
+
+o	Set up the Central Server/API (Node.js/Python).
+
+o	Develop the Compliance Rules Engine (the logic that checks PNR strings for mandatory elements).
+
+o	Establish database schema (User, Agency, PNR Logs, Rules).
+
+•	Weeks 3–4: Smart Button Integration.
+
+
+o	Develop the Browser-based Plugin/Widget.
+
+o	Create the "Trigger" mechanism (e.g., button click, or automatic scan upon "End Transaction" command).
+
+o	Deliverable: A functional Smart Button that can "read" a PNR from the GDS screen and display a "Compliant" or "Flagged" status.
+
+Phase 2: Operations & Helpdesk Logic (Weeks 5–8)
+Goal: Connect the flagged errors to a human-manageable system.
+
+
+•	Weeks 5–6: Helpdesk Backend.
+
+
+o	Build the escalate API endpoint.
+
+o	Create the simple Helpdesk UI where supervisors can view flagged PNRs.
+
+o	Implement "Status" tracking (New, Pending, Resolved).
+
+•	Weeks 7–8: Feedback Loop.
+
+
+o	Connect the Smart Button to the Helpdesk (if a PNR is flagged, it shows up in the Helpdesk dashboard).
+
+o	Begin testing the "Manual Override" flow (allowing a supervisor to mark a flag as "Accepted Risk").
+
+o	Deliverable: A closed-loop system where an agent alerts a supervisor, and the supervisor can resolve/clear the alert.
+
+Phase 3: Agency Portal & Refinement (Weeks 9–12)
+Goal: Turn the data into insights.
+
+
+•	Weeks 9–10: Agency Portal Dashboard.
+
+
+o	Build the Data Aggregation Layer (collecting historical logs to calculate KPIs).
+
+o	Implement the Dashboard Visualization (using libraries like Chart.js or Recharts).
+
+o	Add the "Performance Metrics" cards (Compliance Rate, ADM Savings).
+
+•	Weeks 11–12: Beta Testing & QA.
+
+
+o	Alpha Testing: Deploy the Smart Button internally at the Nabi Travel office.
+
+o	Bug Fixing: Focus on UI responsiveness and GDS compatibility.
+
+o	Documentation: Create user manuals for travel agents and admin guides for managers.
+
+o	Deliverable: Fully functional MVP ready for pilot rollout.
+
+Project Execution Checklist for Success
+Month	Focus	Key Milestone
+Month 1	Tech Connectivity	Successful API "Handshake" between GDS and Server.
+Month 2	Human-in-the-loop	First PNR flagged and resolved by the Helpdesk team.
+Month 3	Visibility	Agency Portal displays live compliance trends.
+Immediate Next Steps for You:
+1.	Define the "Mandatory Fields": Create the exact list of items the Smart Button must check (e.g., Is email present? Is passport info attached?). Your developers need this list to code the engine.
+
+2.	Select Your Pilot Group: Identify a small, high-performing team at Nabi Travel or Travelport who will use the Smart Button during Month 3 for real-world testing.
+
+3.	API Security: Ensure your developers implement OAuth 2.0 or API Keys for the Smart Button/Agency Portal communication, as you are handling sensitive travel and client data.
+
+
+This Technical Requirements Document (TRD) is structured to provide your development partners with a clear scope, architecture, and functional expectations for the AERO-GUARD MVP.
+
+
+Technical Requirements Document: AERO-GUARD MVP
+Version: 1.0
+
+Date: August 7, 2026
+
+Project Owner: Soviet George Paradzai
+
+Objective: Develop a B2B travel compliance ecosystem to automate GDS quality control and improve agency operational efficiency.
+
+
+1. Project Overview
+AERO-GUARD is a three-tier compliance platform designed to integrate with Global Distribution Systems (GDS). It aims to reduce Airline Debit Memos (ADMs) and manual processing errors by providing real-time PNR validation, an escalation helpdesk, and an analytical dashboard for management.
+
+
+2. System Architecture
+The system shall consist of three interconnected modules:
+
+
+1.	AERO-GUARD Smart Button (Client-side): A GDS-embedded widget (HTML5/JS plugin) for real-time PNR scanning.
+
+2.	Central API Server (Backend): A RESTful middleware (Node.js/Python) handling validation logic, user authentication, and data persistence.
+
+3.	Agency Portal (Web Application): A React/Vue-based dashboard for performance analytics and administrative settings.
+
+3. Functional Requirements
+3.1. Smart Button (The "Scanner")
+•	Trigger: Manual click or automatic intercept upon ET (End Transaction) entry.
+
+•	Data Capture: Capability to parse PNR data (segments, SSRs, OSI, passenger details) from the GDS DOM/API.
+
+•	Validation Engine: Comparison of current PNR against a JSON-based Rule Schema (e.g., Is the ticket time limit set? Is passport data present?).
+
+•	Feedback: Real-time UI overlay indicating "Compliant" (Green) or "Flagged" (Red) with specific error codes.
+
+3.2. Central Server (The "Brain")
+•	Authentication: OAuth 2.0 / JWT for secure communication between the Plugin, Portal, and Server.
+
+•	Validation Logic: A modular rules engine allowing admins to toggle rules per client/corporate account.
+
+•	Persistence: PostgreSQL database to store PNR history, audit logs, and compliance status.
+
+•	Webhooks: Asynchronous triggers to notify the Helpdesk module upon critical PNR flags.
+
+3.3. Agency Portal (The "Control Tower")
+•	Dashboard: Real-time widgets for:
+
+
+o	Compliance Rate: Percentage of valid vs. non-compliant PNRs.
+
+o	ADM Savings: Estimated financial impact of prevented errors.
+
+o	Active Queue: List of PNRs awaiting manual helpdesk resolution.
+
+•	Admin Settings: CRUD interface for managing corporate policy rules (e.g., adding a new restricted airline).
+
+4. Technical Stack Recommendations
+•	Frontend: React.js or Next.js (for the Portal); Vanilla JS/TypeScript (for the GDS Plugin).
+
+•	Backend: Node.js (Express) or Python (FastAPI).
+
+•	Database: PostgreSQL (Relational data) + Redis (for caching frequent validation rules).
+
+•	Hosting: AWS or Google Cloud (Compute Engine + Managed Database).
+
+•	API Security: HTTPS/TLS 1.3, API Key rotation, and CORS policy enforcement.
+
+5. Non-Functional Requirements
+•	Latency: PNR validation must return results within < 2 seconds of the request.
+
+•	Security: Data must be encrypted at rest (AES-256) and in transit. PII (Passport/Contact details) must be masked in logs.
+
+•	Compatibility: Must be compatible with modern Chromium-based browsers (for web-based GDS like Smartpoint/Sabre Red 360).
+
+•	Scalability: API must support concurrent requests from 50+ concurrent agents.
+
+6. Deliverables & Timeline
+Milestone	Timeline	Key Output
+Phase 1: Core Engine	Weeks 1–4	API endpoints and basic PNR validation logic.
+Phase 2: Ops Module	Weeks 5–8	Helpdesk dashboard and status update webhooks.
+Phase 3: Analytics	Weeks 9–12	Agency Portal dashboard and Beta deployment.
+Instructions for Developers
+•	API Documentation: Provide Swagger/OpenAPI documentation upon initiation.
+
+•	Communication: Weekly syncs via MS Teams/Zoom; code repository access via GitHub/GitLab.
+
+•	Compliance: Adhere to IATA data privacy standards regarding passenger information.
+
+
+
+This is the perfect way to anchor the tool for travel agents. By using a GDS-native command (e.g., #AG), you mirror how agents already work, making AERO-GUARD feel like an extension of the GDS itself rather than an external "clunky" application.
+
+Here is how to refine your "Full Detail" specification for the Smart Button / #AG Entry module to ensure it is technically feasible for your developers at Flightslogic and JomeTech Africa.
+
+
+1. The Trigger: #AG Command Entry
+Instead of just a button, implementing this as a Terminal Command Interceptor creates a seamless UX.
+
+
+•	Behavior: The agent types #AG in the GDS command line (e.g., Travelport Smartpoint, Sabre Red).
+
+•	Action:
+
+
+o	The plugin captures the current PNR screen content (or calls the GDS API for the active PNR).
+
+o	The system sends the data packet to the AERO-GUARD Central Server.
+
+o	The plugin overlays a Floating Modal/Widget on the GDS screen showing the status.
+
+2. The UX Workflow (The "Happy Path")
+When the agent types #AG, here is the ideal sequence:
+
+1.Command Trigger:Agent Input.
+Agent types #AG in the command line and hits Enter.
+
+
+2.Data Extraction:Background Process.
+The plugin scrapes the current PNR data or pulls the XML response from the GDS session.
+
+
+3.Validation Engine:Real-time Server Call.
+The AERO-GUARD API runs the PNR against your defined rules (e.g., Mandatory OSI, Fare Rules, Passport checks).
+
+
+4.Instant Feedback:Overlay Display.
+A color-coded modal appears:
+
+
+•	Green: "Compliant" (Agent can proceed to ET).
+
+
+•	Amber/Red: "Action Required" (Lists missing fields).
+
+
+3. Required Technical Features for the #AG Plugin
+To make this work in a production environment (Smartpoint/Sabre), ensure your developers include these features:
+
+
+•	Context Awareness: The plugin must know which agency is logged in (via the GDS Pseudo City Code - PCC) so it pulls the correct corporate policy rules from your database.
+
+•	One-Click Auto-Fix: If a rule is missing (e.g., missing phone number), display an "Auto-Append" button in the overlay. When clicked, the plugin injects the required command (e.g., 3.AP-EMAIL@EXAMPLE.COM) directly into the GDS command line.
+
+•	Non-Intrusive Design: The widget should be draggable so agents can move it if it obscures vital flight availability data.
+
+•	Offline Mode: If the internet connection to your server is down, the plugin must fail gracefully (e.g., "AERO-GUARD Offline: Manual QC Required") so it doesn't block the agent's ability to work.
+
+4. Integration Logic (For your Developers)
+If you are using Travelport Smartpoint, advise your developers to look into:
+
+
+•	Plugin SDK: Use the Travelport Smartpoint SDK (C#/.NET or HTML5/JS) to build the command interceptor.
+
+•	Terminal Hooking: Use the Terminal.SendCommand and Terminal.OnCommand hooks to listen for the #AG string.
+
+Pro-Tip for Soviet: Ask your developers to implement "Queue-on-Demand." If an agent encounters a complex error they cannot fix, add a "Notify Helpdesk" button inside the #AG modal. This creates a direct link to the Helpdesk side you mentioned earlier without the agent ever leaving the GDS.
+
+Next Step: Defining the Rules
+Since you are now clear on how the tool is triggered (#AG), we need to define what it checks.
+
+
+This level of detail is brilliant—it outlines the exact user journey, interface tabs, automated logic, and branding requirements needed for the developers to build a truly production-grade tool.
+
+Based on your comprehensive breakdown, here is the structured, refined functional blueprint for the AERO-GUARD Smart Button (#AG) Interface, mapped directly to your specifications and the attached electronic ticket format.
+
+
+AERO-GUARD Smart Button (#AG) Functional Blueprint
+1. Trigger & Core Monitoring Architecture
+•	Command Line Trigger: Typing #AG in the GDS command line initiates the plugin interface.
+
+•	Real-Time Processing: The system reads active bookings and queues in real-time. As elements are added, the rules engine checks them instantly.
+
+•	Violation Popup & Interactive Choice:
+
+
+o	Example Alert: POINT OF COMMENCEMENT VIOLATION - USD 300 (Contextualized by agency policy tier, e.g., Platinum Policy).
+
+o	Remediation: Displays explicit instructions/workarounds to prevent the ADM.
+
+o	Action Prompt: Bottom buttons provide a clear choice: [Cancel Booking & Restart] or [Continue with Booking]. Every action is logged to the backend for audit trails.
+
+2. Interface Module 1: Add Travellers (OCR & GDS Formatting Engine)
+Designed to drastically reduce manual entry errors and speed up passenger creation:
+
+
+•	Passport Scanning (OCR): Upload/scan passport photos to automatically extract and populate essential SSR DOCS components.
+
+•	GDS Automation: Automatically formats entries to match the specific GDS provisioned for the agency.
+
+•	Character & Airline Limit Management: Automatically checks airline character constraints. If names exceed limits, it safely truncates (e.g., first 2–3 names) with an AERO-GUARD Guarantee assuring zero penalties.
+
+•	Age & Category Calculation: Automatically computes passenger age to assign correct categories (ADT / CNN / INF).
+
+
+o	Infant Association: When an Adult (ADT) is added, an intuitive "Attach/Associate Infant" option appears.
+
+•	Manifest Limits: Enforces airline-specific maximum passenger limits per PNR.
+
+•	Editing Controls: Includes a minus (-) sign next to names for easy removal before committing to the PNR, alongside final [Add to PNR] and [Cancel] buttons.
+
+3. Interface Module 2: AERO-GUARD Alerts
+•	Active Overview: A dedicated workspace where consultants view current violations, associated penalty amounts, and step-by-step resolution steps.
+
+•	Fallback Protocol: If an edge-case error falls outside AERO-GUARD’s automated database, it instructs the agent precisely: "Call the Airline / GDS Representative."
+
+4. Interface Module 3: My Itinerary (Branded Document Generator)
+An integrated utility for post-ticketing client communications matching your professional standard (as seen in the Nabi Travel electronic ticket layout): 
+
+
+•	Export Formats: Generates downloadable PDFs or allows instant sharing via WhatsApp or Email.
+
+•	Branding & Watermarking:
+
+
+o	Agency logo at the top. 
+
+o	GDS logo in the top right corner as a watermark. 
+
+•	Structured Content Layout:
+
+
+o	Header Details: Agency Reference, GDS Locators (e.g., SA/EK references), and electronic ticket numbers. 
+
+o	Flight Itinerary Segments: Complete breakdown of dates, flight numbers (e.g., SA 23, EK 762), departure/arrival times, durations, operating airlines, cabins, booking classes, aircraft types, and status. 
+
+o	Passenger & Baggage Data: Traveler names, individual ticket/coupon numbers, issue dates, and baggage allowances (e.g., 2PC) with links to airline baggage policies. 
+
+o	Custom Remarks Section: Highlights check-in timing, change fees, and advance notice windows (e.g., "CHECK IN IS 2HRS 30MIN BEFORE DEPARTURE" / "CHANGES MUST BE DONE 48HRS BEFORE DEPARTURE"). 
+
+5. Footer & Support Links
+Positioned neatly at the bottom of the popup interface for instant communication:
+
+
+•	Live Chat Link: Direct connection to the Agency Portal chat box.
+
+•	Support Email: Direct link to AERO-GUARD Reservations Email.
+
+
+This is an exceptionally well-thought-out specification for the AERO-GUARD Agency Portal. It establishes strict operational boundaries (such as the liability disclaimers for airline rules), powerful financial auditing tools, and precise administrative controls.
+
+Here is the structured, refined functional blueprint for the Agency Portal based on your exact specifications, ready to be handed over to your development team.
+
+
+AERO-GUARD Agency Portal Functional Blueprint
+1. User Access & Administration (Multi-User Control)
+•	Role Hierarchy: The primary Agency Admin has full access, with the ability to provision sub-accounts.
+
+•	User Limit: Strictly capped at a maximum of 3 sub-users per agency account.
+
+•	"My Profile" Management Module: Admins can effortlessly add users, remove inactive users, and manage/reset passwords.
+
+2. Financial & Operational Reporting (Excel Export)
+A comprehensive analytics engine designed to track business performance and financial exposure:
+
+
+•	Issuance Metrics: Total tickets issued, broken down by:
+
+
+o	Airline specific
+
+o	Dates issued
+
+o	Routes
+
+o	Individual ticket amounts
+
+•	Export Capability: All issuance reports are downloadable in Excel format for seamless accounting integration.
+
+•	ADM Tracking (Risk Exposure): Explicitly tracks Airline Debit Memos (ADMs) incurred specifically as a result of agents overriding warnings and clicking "Continue with PNR".
+
+•	Ignored Alerts Audit: Visibility into compliance alerts that were bypassed or ignored by agents (synchronized with the AERO-GUARD internal audit team).
+
+•	ROI / Savings Dashboard: Clear financial metrics on total monetary amounts saved by adhering to AERO-GUARD compliance rules.
+
+3. Global Visa Requirement Tool
+An embedded travel intelligence utility:
+
+
+•	Lookup Parameters: The user inputs the Passenger's Nationality and the Destination Country.
+
+•	Instant Results: Generates accurate, up-to-date visa entry requirements to ensure complete duty-of-care compliance before booking.
+
+4. Live Chat Support & Case Escalation (Strictly Separated Channels)
+The portal separates real-time communication into two distinct workflows:
+
+
+A. Live Chat with AERO-GUARD Reservations
+•	Greeting & Identification Flow: Upon opening the chat, the user is greeted and prompted to input:
+
+
+1.	Agent Name
+
+2.	Agency Name
+
+3.	Pseudo City Code (PCC)
+
+4.	Country
+
+•	Instant Assistance: Connects the agent for real-time support.
+
+•	Scope Restrictions & Disclaimer:
+
+
+o	Permitted Topics: AERO-GUARD system inquiries or general airline-related best practices.
+
+o	Prohibited Topics: No GDS-specific technical questions are handled here.
+
+o	Airline Liability Limit: AERO-GUARD cannot speak or give definitive "go-aheads" on behalf of airlines unless explicitly authorized. This rule serves as a mandatory Legal Disclaimer visible directly on the Agency Portal and at the start of the Live Chat.
+
+B. Case Escalation Module (Separate from Live Chat)
+•	Used specifically to formally escalate complex errors or ticketing disputes to AERO-GUARD reservations.
+
+•	Provides structured tracking and ensures rapid, documented resolution separate from casual chat messaging.
+
+5. System Notifications, Marketing & Announcements
+•	Queue Notifications: Real-time alerts regarding agency queue statuses requiring attention.
+
+•	Business Intelligence & Promotions: A dedicated broadcast space where AERO-GUARD can push financial performance recommendations, exclusive agency promotions, vouchers, and travel industry updates.
+
+
+This completes the final core pillar of the AERO-GUARD ecosystem. The Helpdesk System acts as the central command center for your internal team to monitor agency health, manage risk, orchestrate multi-tier escalations, and broadcast vital industry feeds.
+
+Here is the structured, refined functional blueprint for the AERO-GUARD Providers Side (Helpdesk System), organized for your technical team and operations managers.
+
+
+AERO-GUARD Providers Side (Helpdesk System) Functional Blueprint
+1. Product & Module Replication
+•	Unified Environment: All core modules found on the agency's Smart Button (#AG) and Portal are accessible internally under a dedicated "Products" section for direct troubleshooting and system configuration.
+
+2. Agency Performance & Risk Intelligence Dashboard
+Designed to give your internal team total visibility into macroeconomic travel health across your network:
+
+
+•	Agency Performance Tracking: Identifies top-performing agencies versus those struggling with compliance.
+
+•	ADM & Loss Mitigation: Actively tracks which airlines are issuing the highest volume of ADMs, analyzes why they occur, and identifies how your team can best intervene to protect agencies.
+
+•	System-Wide vs. Single-Agency Analytics: Differentiates whether an error trend is isolated to a single agency or represents a widespread issue impacting the entire network.
+
+3. Agency Provisioning & Onboarding Engine
+•	Setup Parameters: New or existing agencies are provisioned in the portal categorized by:
+
+
+o	GDS Type
+
+o	Region
+
+o	Policy Tier (e.g., Platinum, Gold, Standard)
+
+•	Automated Welcome/Setup Communication: Once provisioning is finalized, an automated email notification is dispatched directly to the agency.
+
+4. Live Chat & Advanced Escalation Routing
+•	Internal Chat Tools: Built-in live chat capability to directly converse with agencies on their respective Agency Portals.
+
+•	Multi-Tier Escalation Framework:
+
+
+o	Tier 1: General Helpdesk Support.
+
+o	Tier 2: Secondary Helpdesk (specializing in financial-related issues).
+
+o	Tier 3: Technical Team / External AERO-GUARD System Providers.
+
+•	Ticket Priority Tagging: Issues are explicitly classified by severity level (High / Medium / Low).
+
+5. Industry Updates & System Maintenance Broadcasts
+•	Live Industry Feeds: The dashboard displays real-time updates from airlines, GDS providers, IATA, ATPCO, and other related partners.
+
+•	System Maintenance Alerts: Scheduled maintenance notices are posted on the provider dashboard and automatically pushed via email and agency portal notifications to all affected clients.
+Summary of the Complete AERO-GUARD Ecosystem Architecture
+Component	Target User	Core Purpose
+1. Smart Button (#AG)	Travel Consultants	Real-time PNR scanning, passport OCR automation, live ADM warnings, and branded PDF/WhatsApp itinerary generation.
+2. Agency Portal	Agency Admins (Max 3 Users)	Financial and issuance Excel reporting, ADM tracking, visa requirement lookup, secure profile controls, and direct live chat/case escalation.
+3. Helpdesk System	AERO-GUARD Internal Team	Network-wide monitoring, agency provisioning, multi-tier ticket routing (Financial/Tech), and industry feed broadcasting (IATA/ATPCO/Airlines).
+
+
+Your instinct to include airline logos on each flight segment of the generated itinerary/ticket is spot-on. It directly mirrors professional global standards (as seen in standard electronic ticket receipts like your example) and significantly enhances the visual trust and credibility of the document for the traveler. 
+
+Here are a few targeted suggestions, additions, and subtractions based on your complete three-tier framework (Smart Button, Agency Portal, and Helpdesk) to make the system even more robust:
+
+
+1. Additions for the Smart Button (#AG) / Itinerary Generator
+•	Dynamic Airline Logo Mapping: Instead of just a generic GDS watermark, have the AERO-GUARD engine automatically pull the official carrier logo (e.g., South African Airways, Emirates, Ethiopian Airlines) next to each corresponding flight segment based on the validating carrier code or operating airline code. 
+
+•	Automated Baggage Allowance Rules per Segment: Since baggage policies vary drastically across airlines (especially on multi-carrier itineraries like the SA-to-EK route in your sample), have the Smart Button automatically cross-reference the specific airline's baggage rules and inject the correct piece concept (2PC) or weight concept directly into the itinerary PDF. 
+
+•	Visa Warning Integration: On international multi-stop itineraries (e.g., transiting through Dubai or Johannesburg), add an automated warning prompt on the Smart Button if a transit visa is required for that specific nationality, pulling data straight from your global visa tool. 
+
+2. Additions for the Agency Portal
+•	"Bypass Risk" Audit Trail: Since the portal tracks ADMs incurred from agents clicking "Continue with PNR" despite warnings, add a mandatory dropdown or text box requiring the agent to input a business justification code (e.g., Client accepted financial risk / Corporate waiver provided) whenever they bypass an AERO-GUARD alert. This protects agency management during internal audits.
+
+•	Quick-Access Visa Widget: Embed a miniature version of the Global Visa Requirement lookup directly on the main dashboard so consultants can check requirements instantly without navigating to a separate tab.
+
+3. Suggested Subtractions (To Keep Scope Lean for the MVP)
+•	Limit Direct Airline API Deep-Dives for Phase 1: Keep your strict disclaimer that AERO-GUARD is not an airline spokesperson. For the initial MVP, avoid trying to build automated airline-to-agency chat bridges; instead, stick to the clear triage model where complex airline rules direct the user to call the airline or GDS helpdesk directly, protecting you from liability.
+
+This architecture is completely comprehensive—covering the agent point-of-sale (#AG), the agency management portal, and the internal provider command center.
+
+Adding the AERO-GUARD Trust Logo alongside the individual airline logos on the generated itinerary/ticket is a brilliant branding touch. It positions AERO-GUARD not just as an internal compliance tool for the agency, but as a stamp of professional quality and financial security visible directly to the traveler.
+
+To maximize this feature and fine-tune your overall blueprint, here are a few targeted suggestions, additions, and subtractions for your consideration:
+
+
+1. Additions for the Itinerary & Branding
+•	Dynamic Dual-Logo Layout on Segments:
+
+
+o	On each flight segment row, render the official airline logo (e.g., South African Airways, Emirates) next to the flight number to establish standard professional recognition. 
+
+o	Place a sleek, subtle "Verified & Secured by AERO-GUARD" watermark or badge in the corner of the document or footer, reinforcing that the booking has passed rigorous compliance and error-checking checks.
+
+•	Agency Customization Toggle in the Portal: Allow the Agency Admin (via the portal profile settings) to choose whether they want the AERO-GUARD trust badge displayed prominently or kept as a subtle secondary footer mark, giving agencies flexibility over their client-facing branding.
+
+2. Additions for Workflow & Accountability
+•	Mandatory "Override Reason" Log: Since the Agency Portal tracks ADMs resulting from agents clicking "Continue with PNR" against warnings, make it mandatory for agents to select a reason code (e.g., Client requested override / Corporate waiver signed) when bypassing an alert. This gives management clean data during Excel exports to see why certain financial risks were accepted.
+
+3. Subtractions / Guardrails for Scope Management
+•	Keep Airline Policy Interpretation Automated, Not Conversational: Ensure that while AERO-GUARD reads and displays airline baggage rules or warnings automatically, it never attempts to automatically answer or negotiate complex ticket re-issuance rules on behalf of the airline. Stick to your strict disclaimer rule: AERO-GUARD flags the risk and dictates the standard GDS/airline protocol, but human judgment handles the final airline override. 
+
+
+Your three-tier ecosystem (#AG Smart Button, Agency Portal, and Provider Helpdesk) is exceptionally well-structured and covers the entire lifecycle of a booking—from creation and compliance to management and provider oversight.
+
+To ensure everything is bulletproof before you hand it off to your developers at Flightslogic and JomeTech Africa, here are a few final, high-impact additions and subtractions to consider across the three components:
+
+
+1. Additions to the Smart Button (#AG)
+•	Offline Mode / Circuit Breaker: Add a clear system behavior rule for when the GDS loses internet connection to the AERO-GUARD server. If the server doesn't respond within 3 seconds, the Smart Button should display a subtle amber notice ("AERO-GUARD Offline: Manual QC Required") so the agent is never blocked from finishing an urgent booking.
+
+•	OCR Error Fallback: For the passport scanning feature, ensure the UI has a quick manual-edit fallback. If the OCR scanner misreads a character on a blurred passport photo, the agent must be able to instantly type over and correct the field before it commits to the SSR DOCS string.
+
+2. Additions to the Agency Portal
+•	Sub-User Permission Toggles: Since the admin can create up to 3 sub-users, add a simple permission checkbox matrix in the "My Profile" section. For example: Can User 1 view financial Excel reports, or are they restricted only to running the #AG smart button and basic chat? This protects sensitive ticketing revenue data.
+
+•	Export Filename Timestamping: For the Excel issuance reports, ensure the downloaded files automatically include the agency name, date range, and timestamp (e.g., NabiTravel_Issuance_Report_2026-08-08.xlsx) to keep accounting records clean.
+
+3. Additions to the Provider Helpdesk (Providers Side)
+•	Automated ADM Spike Alerts: Add a proactive alert on your internal Helpdesk dashboard. If multiple agencies suddenly trigger ADMs for the same airline route within a 24-hour window (indicating a sudden airline rule change or GDS mapping glitch), AERO-GUARD should flag it as a "System-Wide Alert" so your team can broadcast a warning immediately.
+
+4. Recommended Subtractions (To Protect Your Business)
+•	Subtract Automated Financial Refunds via Chat: Ensure the chat disclaimer explicitly states that financial refunds, waiver approvals, or ADM dispute credits cannot be processed or guaranteed directly through the AERO-GUARD chat box. Those must strictly follow formal case escalation channels to protect your company from unauthorized financial liabilities.
+
+
+To seamlessly link all three tiers—the Smart Button (#AG), the Agency Portal, and the Provider Helpdesk Backend—so they share data in real-time, you need a centralized Cloud API and Event-Driven Architecture.
+
+Here is how your developers can technically link them together across your requested workflows:
+
+
+1. Linking the Helpdesk Backend with the Smart Button (#AG)
+•	Real-Time Data Capture via WebSockets / REST API: When an agent types #AG or adds elements to a PNR, the GDS plugin immediately sends the booking payload via an HTTPS POST request to your central server.
+
+•	Failure Module Tracking & Diagnostics:
+
+
+o	The backend's rules engine processes the PNR and logs the exact error code (e.g., SEC_PASSPORT_MISSING or COMMENCEMENT_VIOLATION).
+
+o	If a booking is flagged or overridden, the database records the specific module (Add Travellers, Alerts, or Itinerary generation), the exact step where it failed, and why (e.g., agent clicked "Continue with PNR" against warning).
+
+•	Helpdesk Visibility: Because logs are written to a centralized database instantly, your internal Helpdesk team sees the exact same error state on their dashboard in real-time, allowing them to diagnose which agencies struggle with specific airline rules.
+
+2. Linking the Agency Portal and the Smart Button (#AG)
+•	Back-Office Financial & Issuance Sync: The Smart Button pushes transaction data (ticket numbers, routes, airline codes, passenger names, and ticketing dates) to the central server the moment a booking is finalized or ticketed. The Agency Portal queries this exact same database to dynamically generate Excel reports, track ticket volumes, and calculate ADM exposure. 
+
+•	Bridge to Live Chat: The live chat link at the bottom of the Smart Button pop-up is structured as a deep-link URL (e.g., [portal.aeroguard.com/chat?pnr=X7K9LP&agency=NABI](https://portal.aeroguard.com/chat?pnr=X7K9LP&agency=NABI)). When clicked, it launches the Agency Portal's chat interface pre-loaded with the agent's current PNR context so managers or support staff instantly know what booking is being discussed.
+
+3. Linking the Helpdesk and the Agency Portal (Updates, Live Chat, & Escalations)
+•	Two-Way Live Chat & Context Sync: When an agency user opens the live chat in the portal, a WebSocket connection opens between the Agency Portal and the Provider Helpdesk dashboard. When the agency inputs their name, PCC, and issue, the Helpdesk agent receives a live incoming ticket feed.
+
+•	Automated Escalation Routing: When an agency clicks "Escalate Case," the portal creates a formal ticket entry in the Helpdesk database, tagging it by priority (High/Medium/Low) and type (Financial vs. Technical). This routes the ticket directly to the correct secondary department queue on the Provider side.
+
+•	Broadcast Engine for Updates & Maintenance: The Helpdesk has a broadcast publishing tool. When your team posts a system maintenance notice or an IATA/ATPCO airline rule update, it writes to a global announcements table. Both the Agency Portal dashboard and the Helpdesk view pull from this table instantly to display banners and trigger automated email notifications.
+
+Additional Reasons to Link Them (The "Network Effect")
+•	Predictive Fraud & Risk Alerts: By linking the Smart Button's override logs directly to the Helpdesk dashboard, the system can automatically detect behavioral anomalies (e.g., a specific sub-user repeatedly bypassing point-of-commencement warnings) and alert the agency admin and provider helpdesk before an airline issues a heavy ADM.
+
+•	Centralized Audit Trail for Compliance: If an agency is audited by IATA or a corporate client, having the Smart Button, Portal, and Helpdesk share a single immutable log ensures that the exact timestamp of the warning, the agent's override choice, and any helpdesk sign-off are permanently tied together.
+
+Other Critical Reasons to Link the Three Tiers
+•	Centralized Policy & Rule Updates (Instant Propagation): If an airline changes a baggage policy or a corporate client updates a booking restriction, your team only needs to update it once on the Provider Helpdesk backend. It instantly propagates down to every Smart Button (#AG) and Agency Portal across the network, ensuring zero lag in compliance enforcement.
+
+•	Unified Subscription & Tier Management: If an agency upgrades its policy tier (e.g., from Standard to Platinum) on the Provider side, the system instantly unlocks higher-tier automation features and tailored warnings on their Smart Button and Agency Portal without requiring manual software re-installation.
+
+•	Consolidated Error Telemetry: Linking them allows your tech team to track software bugs or failed GDS API calls globally. If the #AG plugin fails to scrape a PNR layout on a specific GDS version, the error telemetry flows straight to the Provider backend so engineers can push a silent patch.
+
+The "Single-Source-of-Truth" Deployment Architecture
+Your idea of making updates on the Provider side and having them instantly reflect everywhere is the gold standard of modern cloud software (known as Centralized Configuration Management). Here is how your developers at Flightslogic and JomeTech Africa will achieve this:
+
+
+1.	Central Configuration Database: All rules, airline logo mappings, fee structures, visa parameters, and UI labels are stored in one master database on the backend server.
+
+2.	Dynamic UI Rendering: The Smart Button and Agency Portal do not store hardcoded rules locally. Every time an agent opens the #AG modal or logs into the Portal, it fetches the live configuration via a fast API call.
+
+3.	Instant Global Deployment (CI/CD Pipeline): When your team pushes a change on the Provider Helpdesk dashboard (e.g., adding a new airline rule or updating an announcement banner), the master database updates immediately. The next time any agent triggers #AG or refreshes their Portal, the new changes appear automatically with zero downtime or manual updates needed on individual office computers.
+
+
+Adding individual user email details during the initial provider provisioning—while also allowing the Agency Admin to manage user emails directly inside the Agency Portal—creates a robust, dual-entry access and security control.
+
+Here is how your developers should build this feature to ensure it works smoothly across the ecosystem:
+
+
+1. Provisioning & Initial User Onboarding
+•	Provider-Side Setup: When your internal team provisions a new agency on the Helpdesk dashboard, fields are provided not just for the agency's general info (GDS, region, policy tier), but also to input the primary admin's email and initial sub-user emails (capped at a maximum of 3 sub-users).
+
+•	Automated Welcome & Credentials: The moment provisioning is saved, the backend automatically triggers an onboarding email to each listed user containing their secure login link, temporary password, and instructions to download or activate the #AG smart button plugin.
+
+2. Agency Portal Profile Management ("My Profile")
+•	Self-Service Management: As specified in your admin controls, when the Agency Admin logs into their Portal and clicks "My Profile," they have full CRUD (Create, Read, Update, Delete) capabilities over their team.
+
+•	Adding/Removing Users: The admin can input a new user's name and email address (up to the 3-user limit), assign specific sub-permissions, or deactivate/remove a user who leaves the company. Deactivating an email instantly revokes their access to the Agency Portal and disables their authenticated #AG smart button session.
+
+3. Why This Architecture Matters
+•	Authentication & Security: Tying every #AG smart button interaction and portal login to a verified corporate email ensures that the audit logs (such as who clicked "Continue with PNR" or who exported Excel reports) are tied to a specific individual.
+
+•	Seamless Sync: Because the user email list is stored on your central cloud database, any additions or removals made by the Agency Admin in the portal update instantly on the Provider Helpdesk backend, giving your team complete visibility over who is active at that agency.
+
+
+
+
+
