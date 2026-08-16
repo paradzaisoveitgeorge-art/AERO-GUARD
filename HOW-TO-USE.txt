@@ -1,0 +1,53 @@
+AERO-GUARD - How to use this folder
+===================================
+
+This folder contains the full AERO-GUARD application. You can run it
+on your own Windows computer by following the three steps below.
+
+You only do STEP 1 and STEP 2 once. After that, every time you want
+to use AERO-GUARD you only need STEP 3.
+
+
+STEP 1 - Install Python (one time only)
+----------------------------------------
+1. Go to https://www.python.org/downloads/
+2. Click the big yellow "Download Python" button.
+3. Run the installer.
+4. On the very FIRST screen, tick the checkbox that says
+   "Add Python to PATH" - this is important.
+5. Click "Install Now" and wait for it to finish.
+
+
+STEP 2 - Set up AERO-GUARD (one time only)
+-------------------------------------------
+1. Double-click the file  SETUP.bat  in this folder.
+2. A black window opens and installs everything needed.
+   This takes 2-3 minutes.
+3. When you see "Setup complete!", press any key to close it.
+
+
+STEP 3 - Open AERO-GUARD (every time)
+-------------------------------------
+1. Double-click the file  START.bat  in this folder.
+2. A black window opens and your web browser opens automatically
+   at the login page.
+3. Sign in with:
+      Email:    soviet@aero-guard.io
+      Password: aeroguard
+4. Use the app as long as you want.
+5. When you are done, close the black window - this stops the app.
+
+
+Where things live
+-----------------
+- SETUP.bat        - runs once, sets everything up
+- START.bat        - open AERO-GUARD any time
+- README.md        - overview of the project (open in a text editor)
+- aeroguard_flask/ - the app itself (do not modify unless you know what you're doing)
+
+
+If something goes wrong
+-----------------------
+- If SETUP.bat says "Python is not installed", go back to STEP 1.
+- If START.bat says "Setup has not been run yet", do STEP 2 first.
+- For anything else, share the black-window messages with your developer.
