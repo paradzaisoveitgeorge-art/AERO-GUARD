@@ -2,6 +2,22 @@
 {% block title %}Dashboard &middot; AERO-GUARD{% endblock %}
 {% block content %}
 
+{% if adm_spike %}
+<div class="spike-banner" id="adm-spike-banner" role="alert">
+  <span class="spike-banner__icon">&#9888;</span>
+  <div class="spike-banner__body">
+    <div class="spike-banner__title">System-wide ADM spike detected</div>
+    <div class="spike-banner__detail">
+      {{ adm_spike.agencies }} agencies triggered <b>{{ adm_spike.rule }}</b> on
+      <b>{{ adm_spike.route }}</b> ({{ adm_spike.airline }}) in the last {{ adm_spike.window }}.
+      Likely an airline rule change or GDS mapping glitch &mdash; consider a network broadcast.
+    </div>
+  </div>
+  <a class="spike-banner__cta" href="{{ url_for('provider_audits') }}">Investigate &rarr;</a>
+  <button class="spike-banner__close" onclick="document.getElementById('adm-spike-banner').remove()" title="Dismiss">&times;</button>
+</div>
+{% endif %}
+
 <div class="hero">
   <div class="hero__body">
     <div class="hero__top" style="justify-content: space-between; align-items: flex-start;">

@@ -794,9 +794,19 @@ def provider_dashboard():
     # Pending issues are catalog/seeded — filter to the agencies we own.
     own_agency_names = {a.name for a in own_agencies}
     pending = [p for p in PendingIssue.query.all() if p.agency in own_agency_names]
+    # Demo: surface a system-wide ADM spike when several agencies hit the same
+    # rule/route in a short window — the kind of pattern the helpdesk broadcasts on.
+    adm_spike = {
+        "agencies": 4,
+        "rule": "POINT OF COMMENCEMENT",
+        "route": "HRE-JNB",
+        "airline": "SA",
+        "window": "24h",
+    }
     return render_provider(
         "provider/dashboard.html",
         "DASHBOARD",
+        adm_spike=adm_spike,
         adms_prevented=adms_prevented,
         dollar_saved=adms_prevented * 350,
         alerts=[{"id": a.id, "severity": a.severity, "source": a.source, "title": a.title,

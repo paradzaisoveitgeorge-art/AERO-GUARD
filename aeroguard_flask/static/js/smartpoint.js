@@ -75,6 +75,30 @@ function openViolation() {
 
 function closeViolation() {
   document.getElementById("violation-overlay").style.display = "none";
+  resetOverrideUi();
+}
+
+function resetOverrideUi() {
+  document.getElementById("violation-primary-actions").style.display = "";
+  document.getElementById("violation-override-box").style.display = "none";
+  document.getElementById("override-reason").value = "";
+  document.getElementById("override-note").value = "";
+  document.getElementById("override-confirm-btn").disabled = true;
+}
+
+function showOverrideReason() {
+  document.getElementById("violation-primary-actions").style.display = "none";
+  document.getElementById("violation-override-box").style.display = "block";
+}
+
+function cancelOverride() {
+  document.getElementById("violation-primary-actions").style.display = "";
+  document.getElementById("violation-override-box").style.display = "none";
+}
+
+function onOverrideReasonChange() {
+  const reason = document.getElementById("override-reason").value;
+  document.getElementById("override-confirm-btn").disabled = !reason;
 }
 
 function applyFix() {
@@ -94,13 +118,33 @@ function applyFix() {
   document.getElementById("sb-resolved").className = "fixed";
 }
 
-function ignoreViolation() {
+function confirmOverride() {
+  const reason = document.getElementById("override-reason").value;
+  if (!reason) return;
+  const note = document.getElementById("override-note").value.trim();
   closeViolation();
-  resolved = "ignored";
-  addCmdLines(["> IGNORE FLAG SET — VIOLATION LOGGED FOR AUDIT"]);
+  resolved = "overridden";
+
+  const lines = [
+    "> CONTINUE WITH PNR — OPERATOR OVERRIDE",
+    "  RISK ACCEPTED :: MIN-STAY VIOLATION S3 · POTENTIAL ADM $450",
+    "  JUSTIFICATION :: " + reason.toUpperCase(),
+  ];
+  if (note) lines.push("  NOTE :: " + note.toUpperCase());
+  lines.push("  LOGGED TO AGENCY AUDIT TRAIL · OP J.STERLING");
+  addCmdLines(lines);
+
   setPulse(false);
-  document.getElementById("sb-resolved").textContent = "⚠ Violation ignored";
+  document.getElementById("sb-resolved").textContent = "⚠ Risk accepted — override logged";
   document.getElementById("sb-resolved").className = "ignored";
+
+  // Surface it in the panel's recent-activity feed so the audit trail is visible.
+  const recent = document.querySelector(".ag-recent ul");
+  if (recent) {
+    const li = document.createElement("li");
+    li.innerHTML = "&#9888; Override logged &middot; LH902 &middot; " + reason;
+    recent.insertBefore(li, recent.firstChild);
+  }
 }
 
 // ---------- Passport OCR flow ----------
@@ -176,6 +220,50 @@ function resetPassport() {
   ocrStep = "idle";
   document.getElementById("passport-verify").style.display = "none";
   document.getElementById("passport-idle").style.display = "flex";
+}
+
+// ---------- Visa requirement lookup (mock) ----------
+// Keyed "NATIONALITY>DESTINATION". Anything not listed falls back to a
+// generic "check with embassy" result so the demo never dead-ends.
+const VISA_RULES = {
+  "ZWE>GBR": { status: "required", label: "Visa required", detail: "Standard Visitor visa must be obtained before travel. Apply online; biometrics at VFS." },
+  "ZWE>ZAF": { status: "free", label: "Visa-free", detail: "Up to 90 days visa-free for Zimbabwean passport holders." },
+  "ZWE>ARE": { status: "voa", label: "Visa on arrival / e-visa", detail: "30-day e-visa available; sponsor or hotel booking may be requested." },
+  "ZWE>USA": { status: "required", label: "Visa required", detail: "B1/B2 visa required. In-person interview at US Embassy Harare." },
+  "ZWE>KEN": { status: "eta", label: "eTA required", detail: "Electronic Travel Authorisation required before boarding (East Africa)." },
+  "ZAF>GBR": { status: "free", label: "Visa-free", detail: "Up to 6 months visa-free for South African passport holders." },
+  "GBR>USA": { status: "eta", label: "ESTA required", detail: "Visa Waiver Program — ESTA authorisation required before travel." },
+  "NGA>GBR": { status: "required", label: "Visa required", detail: "Standard Visitor visa required. Proof of funds and return ticket needed." },
+  "IND>ARE": { status: "voa", label: "Visa on arrival / e-visa", detail: "14/30/90-day e-visa options available for Indian nationals." },
+};
+
+function lookupVisa() {
+  const nat = document.getElementById("visa-nationality").value;
+  const dest = document.getElementById("visa-destination").value;
+  const box = document.getElementById("visa-result");
+
+  if (nat === dest) {
+    renderVisa(box, "free", "Domestic / same country", "No visa required — origin and destination nationality match.");
+    return;
+  }
+  const rule = VISA_RULES[nat + ">" + dest] || {
+    status: "check",
+    label: "Confirm with embassy",
+    detail: "No cached rule for this pairing. Verify with the destination embassy or IATA Timatic before ticketing.",
+  };
+  renderVisa(box, rule.status, rule.label, rule.detail);
+}
+
+function renderVisa(box, status, label, detail) {
+  box.className = "ag-visa-result " + status;
+  const badge = document.createElement("div");
+  badge.className = "ag-visa-result__badge";
+  badge.textContent = label;
+  const body = document.createElement("div");
+  body.className = "ag-visa-result__detail";
+  body.textContent = detail;
+  box.replaceChildren(badge, body);
+  box.style.display = "block";
 }
 
 // Auto-trigger a violation a few seconds in so the demo feels live, same as the source.

@@ -596,6 +596,29 @@ a.stat-card:hover {
 .card__subtitle { font-size: 12px; color: var(--slate-400); margin-top: 2px; }
 .card__header { margin-bottom: 12px; }
 
+/* ---------- ADM spike banner ---------- */
+.spike-banner {
+  display: flex; align-items: center; gap: 14px;
+  background: linear-gradient(to right, rgba(217,119,6,.18), rgba(15,23,42,.4));
+  border: 1px solid var(--amber-600);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 16px;
+}
+.spike-banner__icon { font-size: 22px; line-height: 1; color: var(--amber-400); }
+.spike-banner__body { flex: 1; min-width: 0; }
+.spike-banner__title { font-size: 13px; font-weight: 700; color: var(--amber-400); }
+.spike-banner__detail { font-size: 12px; color: var(--slate-300); margin-top: 2px; }
+.spike-banner__cta {
+  flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--amber-400);
+  text-decoration: none; padding: 6px 10px; border: 1px solid var(--amber-600);
+  border-radius: 8px; white-space: nowrap;
+}
+.spike-banner__cta:hover { background: rgba(217,119,6,.2); }
+.spike-banner__close {
+  flex-shrink: 0; background: none; border: none; color: var(--slate-400);
+  font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.spike-banner__close:hover { color: #fff; }
+
 /* ---------- Alerts list ---------- */
 .alert-list { list-style: none; margin: 0; padding: 0; }
 .alert-list li { padding: 12px 0; display: flex; gap: 12px; border-top: 1px solid var(--slate-800); }

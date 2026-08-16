@@ -141,6 +141,25 @@
 .ag-passport-header .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; }
 .ag-passport-header .pii { border-radius: 4px; background: #ecfdf5; color: #047857; font-size: 9px; font-weight: 700; padding: 2px 6px; }
 
+/* Visa lookup */
+.ag-visa-form { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ag-visa-form__label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; margin-top: 4px; }
+.ag-visa-form select { width: 100%; border-radius: 6px; border: 1px solid #d4d4d8; background: white; padding: 7px 8px; font-size: 12px; color: #18181b; font-family: inherit; }
+.ag-visa-form select:focus { outline: none; border-color: #4f46e5; }
+.ag-visa-form__btn { margin-top: 10px; width: 100%; border-radius: 6px; background: #4f46e5; color: white; padding: 8px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; }
+.ag-visa-form__btn:hover { background: #4338ca; }
+.ag-visa-result { margin-top: 12px; border-radius: 6px; border: 1px solid #e4e4e7; padding: 10px; border-left-width: 3px; }
+.ag-visa-result__badge { font-size: 12px; font-weight: 700; }
+.ag-visa-result__detail { font-size: 11px; line-height: 1.4; color: #52525b; margin-top: 4px; }
+.ag-visa-result.free { border-left-color: #059669; background: #ecfdf5; }
+.ag-visa-result.free .ag-visa-result__badge { color: #047857; }
+.ag-visa-result.voa, .ag-visa-result.eta { border-left-color: #d97706; background: #fffbeb; }
+.ag-visa-result.voa .ag-visa-result__badge, .ag-visa-result.eta .ag-visa-result__badge { color: #b45309; }
+.ag-visa-result.required { border-left-color: #dc2626; background: #fef2f2; }
+.ag-visa-result.required .ag-visa-result__badge { color: #b91c1c; }
+.ag-visa-result.check { border-left-color: #64748b; background: #f8fafc; }
+.ag-visa-result.check .ag-visa-result__badge { color: #475569; }
+
 .ag-dropzone {
   margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 4px;
   border: 2px dashed #c7d2fe; background: rgba(238, 242, 255, 0.4); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;
@@ -217,6 +236,16 @@
 .sp-violation-actions .row { display: flex; gap: 8px; margin-top: 8px; }
 .sp-violation-actions .row button { flex: 1; border-radius: 6px; border: 1px solid #d4d4d8; background: white; padding: 6px; font-size: 11px; font-weight: 600; color: #52525b; cursor: pointer; }
 .sp-violation-actions .row button:hover { background: #fafafa; }
+
+/* Bypass-risk override capture */
+.sp-override-box { border-radius: 6px; border: 1px solid #fcd34d; background: #fffbeb; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.sp-override-box__warn { font-size: 10px; line-height: 1.4; font-weight: 600; color: #b45309; }
+.sp-override-box__label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; }
+.sp-override-box select, .sp-override-box__note { width: 100%; border-radius: 6px; border: 1px solid #d4d4d8; background: white; padding: 7px 8px; font-size: 11px; color: #18181b; font-family: inherit; }
+.sp-override-box select:focus, .sp-override-box__note:focus { outline: none; border-color: #4f46e5; }
+.sp-override-confirm { width: 100%; border-radius: 6px; background: #dc2626; color: white; padding: 8px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; }
+.sp-override-confirm:hover:not(:disabled) { background: #b91c1c; }
+.sp-override-confirm:disabled { background: #e4e4e7; color: #a1a1aa; cursor: not-allowed; }
 
 /* Status bar */
 .sp-statusbar { height: 24px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #d4d4d8; background: #f3f4f6; padding: 0 12px; font-size: 10px; color: #52525b; }

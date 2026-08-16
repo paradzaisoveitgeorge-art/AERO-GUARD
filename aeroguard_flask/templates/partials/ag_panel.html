@@ -14,6 +14,7 @@
   <div class="ag-tabs">
     <button type="button" class="active" data-tab="violations" onclick="setTab('violations')">Alerts <span class="badge" id="tab-badge-prevented">11</span><span class="glow" id="tab-glow"></span></button>
     <button type="button" data-tab="passport" onclick="setTab('passport')">Passport</button>
+    <button type="button" data-tab="visa" onclick="setTab('visa')">Visa</button>
     <button type="button" data-tab="learn" onclick="setTab('learn')">Learn <span class="badge">3</span></button>
     <button type="button" data-tab="help" onclick="setTab('help')">Help</button>
   </div>
@@ -98,6 +99,34 @@
         </div>
         <div id="passport-applied" class="ag-applied" style="display:none;">&check; Pushed to PNR &middot; NM + DOCS SSR</div>
       </div>
+    </div>
+
+    <!-- Visa tab -->
+    <div data-tabpanel="visa" style="display:none;">
+      <div class="ag-passport-header">
+        <span class="label">Global Visa Requirement</span>
+        <span class="pii">duty of care</span>
+      </div>
+      <div class="ag-visa-form">
+        <label class="ag-visa-form__label" for="visa-nationality">Passenger nationality</label>
+        <select id="visa-nationality">
+          <option value="ZWE">Zimbabwe (ZWE)</option>
+          <option value="ZAF">South Africa (ZAF)</option>
+          <option value="GBR">United Kingdom (GBR)</option>
+          <option value="NGA">Nigeria (NGA)</option>
+          <option value="IND">India (IND)</option>
+        </select>
+        <label class="ag-visa-form__label" for="visa-destination">Destination country</label>
+        <select id="visa-destination">
+          <option value="GBR">United Kingdom (GBR)</option>
+          <option value="ZAF">South Africa (ZAF)</option>
+          <option value="ARE">United Arab Emirates (ARE)</option>
+          <option value="USA">United States (USA)</option>
+          <option value="KEN">Kenya (KEN)</option>
+        </select>
+        <button type="button" class="ag-visa-form__btn" onclick="lookupVisa()">Check requirement</button>
+      </div>
+      <div id="visa-result" class="ag-visa-result" style="display:none;"></div>
     </div>
 
     <!-- Learn tab -->

@@ -27,11 +27,38 @@
         </div>
         <div class="sp-violation-fixbox__cmd">FXX/S2,3/R,Y-PROMO</div>
       </div>
-      <div class="sp-violation-actions">
+      <div class="sp-violation-actions" id="violation-primary-actions">
         <button type="button" class="apply-fix" onclick="applyFix()">Apply One-Click Fix</button>
         <div class="row">
-          <button type="button" onclick="ignoreViolation()">Ignore</button>
+          <button type="button" onclick="showOverrideReason()">Continue with booking&hellip;</button>
           <button type="button" onclick="alert('Fare basis Y-FLEX/SU requires a Sunday stayover. Current itinerary returns Friday 22OCT — issuance will trigger an ADM from LH.')">Why?</button>
+        </div>
+      </div>
+
+      <!-- Bypass-risk audit capture: shown only when the agent chooses to
+           override the block. A justification is mandatory before continuing. -->
+      <div class="sp-override-box" id="violation-override-box" style="display:none;">
+        <div class="sp-override-box__warn">
+          &#9888; You are overriding a CRITICAL block. This will be logged to the
+          agency audit trail against your operator ID.
+        </div>
+        <label class="sp-override-box__label" for="override-reason">Business justification (required)</label>
+        <select id="override-reason" onchange="onOverrideReasonChange()">
+          <option value="">— Select a reason —</option>
+          <option value="Client accepted financial risk">Client accepted financial risk</option>
+          <option value="Corporate waiver provided">Corporate waiver provided</option>
+          <option value="Client requested override">Client requested override</option>
+          <option value="Fare will be manually re-priced offline">Fare will be manually re-priced offline</option>
+        </select>
+        <input type="text" id="override-note" class="sp-override-box__note"
+               placeholder="Optional note (e.g. waiver ref AUTH_MGR_992)" />
+        <div class="sp-violation-actions" style="margin-top:12px;">
+          <button type="button" class="sp-override-confirm" id="override-confirm-btn"
+                  onclick="confirmOverride()" disabled>Confirm &amp; Continue with PNR</button>
+          <div class="row">
+            <button type="button" onclick="cancelOverride()">&larr; Back</button>
+            <button type="button" onclick="applyFix()">Cancel booking &amp; apply fix</button>
+          </div>
         </div>
       </div>
     </div>
