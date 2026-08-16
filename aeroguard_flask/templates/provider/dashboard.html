@@ -132,6 +132,25 @@
 </div>
 
 <div class="card">
+  <div class="card__header">
+    <div class="card__title">Industry News &amp; Alerts</div>
+    <div class="card__subtitle">IATA &middot; ATPCO &middot; Airlines &middot; GDS</div>
+  </div>
+  <ul class="feed-list">
+    {% for f in industry_feed %}
+    <li class="feed-item">
+      <div class="feed-item__top">
+        <span class="feed-item__source">{{ f.source }}</span>
+        <span class="feed-item__tag {{ f.tag }}">{{ f.tag }}</span>
+        <span class="feed-item__time">{{ f.time }}</span>
+      </div>
+      <div class="feed-item__title">{{ f.title }}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="card">
   <div class="card__header"><div class="card__title">Quick Actions</div></div>
   <div class="quick-actions">
     <button class="quick-action" onclick="quickAudit()">

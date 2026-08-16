@@ -14,7 +14,9 @@
   <div class="ag-tabs">
     <button type="button" class="active" data-tab="violations" onclick="setTab('violations')">Alerts <span class="badge" id="tab-badge-prevented">11</span><span class="glow" id="tab-glow"></span></button>
     <button type="button" data-tab="passport" onclick="setTab('passport')">Passport</button>
+    <button type="button" data-tab="travellers" onclick="setTab('travellers')">Travellers</button>
     <button type="button" data-tab="visa" onclick="setTab('visa')">Visa</button>
+    <button type="button" data-tab="itinerary" onclick="setTab('itinerary')">Itinerary</button>
     <button type="button" data-tab="learn" onclick="setTab('learn')">Learn <span class="badge">3</span></button>
     <button type="button" data-tab="help" onclick="setTab('help')">Help</button>
   </div>
@@ -108,6 +110,83 @@
           <button type="button" class="rescan" onclick="resetPassport()">Re-scan</button>
         </div>
         <div id="passport-applied" class="ag-applied" style="display:none;">&check; Pushed to PNR &middot; NM + DOCS SSR</div>
+      </div>
+    </div>
+
+    <!-- Travellers tab -->
+    <div data-tabpanel="travellers" style="display:none;">
+      <div class="ag-passport-header">
+        <span class="label">Add Travellers</span>
+        <span class="pii">auto ADT / CNN / INF</span>
+      </div>
+
+      <div class="ag-trav-form">
+        <div class="ag-trav-form__row">
+          <input type="text" id="trav-surname" placeholder="Surname (e.g. DEMHE)" />
+          <input type="text" id="trav-given" placeholder="Given names (e.g. PATRICK JOHN)" />
+        </div>
+        <label class="ag-trav-form__label" for="trav-dob">Date of birth</label>
+        <input type="date" id="trav-dob" max="2030-12-31" />
+        <label class="ag-trav-form__assoc" id="trav-assoc-wrap" style="display:none;">
+          <input type="checkbox" id="trav-is-infant-assoc" />
+          Associate this infant with an adult in the list
+        </label>
+        <button type="button" class="ag-trav-form__btn" onclick="addTraveller()">+ Add traveller</button>
+        <div class="ag-trav-form__err" id="trav-err" style="display:none;"></div>
+      </div>
+
+      <ul class="ag-trav-list" id="trav-list"></ul>
+
+      <div class="ag-trav-actions" id="trav-actions" style="display:none;">
+        <button type="button" class="apply" onclick="pushTravellersToPnr()">Add all to PNR</button>
+        <button type="button" class="rescan" onclick="clearTravellers()">Clear</button>
+      </div>
+      <div id="trav-applied" class="ag-applied" style="display:none;">&check; Names pushed to PNR</div>
+    </div>
+
+    <!-- Itinerary tab -->
+    <div data-tabpanel="itinerary" style="display:none;">
+      <div class="ag-passport-header">
+        <span class="label">My Itinerary</span>
+        <span class="pii">verified</span>
+      </div>
+
+      <div class="ag-itin-doc">
+        <div class="ag-itin-doc__head">
+          <div class="ag-itin-doc__agency">
+            <div class="ag-itin-doc__agency-name">Nabi Travel</div>
+            <div class="ag-itin-doc__ref">Ref HREOU-2291 &middot; GDS 1G</div>
+          </div>
+          <div class="ag-itin-doc__gds">1G</div>
+        </div>
+
+        <div class="ag-itin-seg">
+          <div class="ag-itin-seg__airline"><span class="ag-itin-seg__code">ET</span></div>
+          <div class="ag-itin-seg__body">
+            <div class="ag-itin-seg__route">HRE &rarr; ADD</div>
+            <div class="ag-itin-seg__meta">ET 873 &middot; 15 JUL &middot; 09:20&ndash;14:05 &middot; Economy (E) &middot; 2PC</div>
+          </div>
+        </div>
+        <div class="ag-itin-seg">
+          <div class="ag-itin-seg__airline"><span class="ag-itin-seg__code">EK</span></div>
+          <div class="ag-itin-seg__body">
+            <div class="ag-itin-seg__route">ADD &rarr; DXB</div>
+            <div class="ag-itin-seg__meta">EK 724 &middot; 15 JUL &middot; 16:40&ndash;22:15 &middot; Economy (E) &middot; 2PC</div>
+          </div>
+        </div>
+
+        <div class="ag-itin-pax">Passenger: DEMHE/PATRICK JOHN MR &middot; e-Tkt 071-2291884401</div>
+
+        <div class="ag-itin-badge">
+          <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}" alt="" class="ag-itin-badge__logo" />
+          Verified &amp; Secured by AERO-GUARD
+        </div>
+      </div>
+
+      <div class="ag-itin-share">
+        <button type="button" onclick="alert('Generating branded PDF…')">&#128196; PDF</button>
+        <button type="button" onclick="alert('Sharing via WhatsApp…')">&#128241; WhatsApp</button>
+        <button type="button" onclick="alert('Emailing itinerary…')">&#9993; Email</button>
       </div>
     </div>
 

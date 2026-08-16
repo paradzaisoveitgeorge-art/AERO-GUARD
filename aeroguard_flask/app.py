@@ -822,10 +822,21 @@ def provider_dashboard():
         "airline": "SA",
         "window": "24h",
     }
+    industry_feed = [
+        {"source": "IATA", "time": "2h ago", "tag": "policy",
+         "title": "New API/PNRGOV passport data mandate for ZW→ZA effective 01 Sep 2026."},
+        {"source": "ATPCO", "time": "5h ago", "tag": "fares",
+         "title": "Category 5 advance-purchase rules refiled for several ET economy fares."},
+        {"source": "Emirates", "time": "yesterday", "tag": "baggage",
+         "title": "EK economy piece-concept baggage updated on East Africa routes."},
+        {"source": "Travelport", "time": "yesterday", "tag": "gds",
+         "title": "Smartpoint 8.5 hotfix resolves DOCS SSR formatting on 1G."},
+    ]
     return render_provider(
         "provider/dashboard.html",
         "DASHBOARD",
         adm_spike=adm_spike,
+        industry_feed=industry_feed,
         adms_prevented=adms_prevented,
         dollar_saved=adms_prevented * 350,
         alerts=[{"id": a.id, "severity": a.severity, "source": a.source, "title": a.title,

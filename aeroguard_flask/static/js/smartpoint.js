@@ -290,6 +290,114 @@ function renderVisa(box, status, label, detail) {
   box.style.display = "block";
 }
 
+// ---------- Passenger builder (Add Travellers) ----------
+let travellers = [];
+
+function travCategory(dobStr) {
+  // ICAO/airline convention: INF < 2yrs, CNN 2–11yrs, ADT 12+.
+  const dob = new Date(dobStr);
+  if (isNaN(dob)) return null;
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+  if (age < 0) return null;
+  if (age < 2) return "INF";
+  if (age < 12) return "CNN";
+  return "ADT";
+}
+
+function addTraveller() {
+  const err = document.getElementById("trav-err");
+  err.style.display = "none";
+  const surname = document.getElementById("trav-surname").value.trim().toUpperCase();
+  const given = document.getElementById("trav-given").value.trim().toUpperCase();
+  const dob = document.getElementById("trav-dob").value;
+
+  if (!surname || !given) return showTravErr("Enter surname and given names.");
+  if (!dob) return showTravErr("Select a date of birth to set the passenger category.");
+  const cat = travCategory(dob);
+  if (!cat) return showTravErr("That date of birth looks invalid.");
+
+  let assocTo = null;
+  if (cat === "INF") {
+    const adult = travellers.find((t) => t.cat === "ADT");
+    if (!adult) return showTravErr("Add the accompanying adult before the infant (INF must be associated).");
+    assocTo = adult.surname + "/" + adult.given.split(" ")[0];
+  }
+
+  // Airline name-length guard: many carriers cap the NM element ~54 chars.
+  let fullName = surname + "/" + given;
+  let truncated = false;
+  if (fullName.length > 54) {
+    const first = given.split(" ")[0];
+    fullName = surname + "/" + first;
+    truncated = true;
+  }
+
+  travellers.push({ surname, given, dob, cat, assocTo, fullName, truncated });
+  document.getElementById("trav-surname").value = "";
+  document.getElementById("trav-given").value = "";
+  document.getElementById("trav-dob").value = "";
+  renderTravellers();
+}
+
+function showTravErr(msg) {
+  const err = document.getElementById("trav-err");
+  err.textContent = msg;
+  err.style.display = "block";
+}
+
+function removeTraveller(idx) {
+  const removed = travellers[idx];
+  // Dropping an adult would orphan any infant associated to it — drop those too.
+  if (removed && removed.cat === "ADT") {
+    const tag = removed.surname + "/" + removed.given.split(" ")[0];
+    travellers = travellers.filter((t, i) => i !== idx && t.assocTo !== tag);
+  } else {
+    travellers.splice(idx, 1);
+  }
+  renderTravellers();
+}
+
+function renderTravellers() {
+  const list = document.getElementById("trav-list");
+  const actions = document.getElementById("trav-actions");
+  list.innerHTML = "";
+  travellers.forEach((t, i) => {
+    const li = document.createElement("li");
+    li.className = "ag-trav-item";
+    const assoc = t.assocTo ? '<span class="ag-trav-item__assoc">→ ' + t.assocTo + "</span>" : "";
+    const trunc = t.truncated ? '<span class="ag-trav-item__trunc" title="Name exceeded the airline limit; safely truncated under the AERO-GUARD guarantee">truncated ✓</span>' : "";
+    li.innerHTML =
+      '<span class="ag-trav-item__cat ' + t.cat + '">' + t.cat + "</span>" +
+      '<span class="ag-trav-item__name">' + t.fullName + assoc + trunc + "</span>" +
+      '<button type="button" class="ag-trav-item__del" title="Remove">−</button>';
+    li.querySelector(".ag-trav-item__del").addEventListener("click", () => removeTraveller(i));
+    list.appendChild(li);
+  });
+  actions.style.display = travellers.length ? "flex" : "none";
+  document.getElementById("trav-applied").style.display = "none";
+}
+
+function pushTravellersToPnr() {
+  if (!travellers.length) return;
+  const lines = ["> AG.TRAVELLERS :: PUSHING " + travellers.length + " NAME ELEMENT(S)"];
+  travellers.forEach((t, i) => {
+    let line = "> " + (i + 1) + "." + t.fullName + " " + t.cat;
+    if (t.assocTo) line += " (INF/" + t.assocTo + ")";
+    lines.push(line);
+  });
+  lines.push("  NAME ELEMENTS PUSHED · CATEGORIES VALIDATED");
+  addCmdLines(lines);
+  document.getElementById("trav-applied").style.display = "block";
+}
+
+function clearTravellers() {
+  travellers = [];
+  renderTravellers();
+}
+
 // Auto-trigger a violation a few seconds in so the demo feels live, same as the source.
 setTimeout(triggerViolation, 2200);
 updateStats();
