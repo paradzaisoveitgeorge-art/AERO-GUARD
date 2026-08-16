@@ -109,7 +109,19 @@
 .ag-tabs .glow { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: sp-blink 1.4s step-start infinite; }
 
 .ag-panel__content { flex: 1; overflow-y: auto; padding: 12px; font-size: 12px; }
-.ag-panel__footer { border-top: 1px solid #e4e4e7; background: #fafafa; padding: 6px 12px; font-size: 9px; color: #71717a; }
+.ag-panel__footer { border-top: 1px solid #e4e4e7; background: #fafafa; padding: 6px 12px; font-size: 9px; color: #71717a; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ag-conn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d4d4d8; background: white; border-radius: 999px; padding: 2px 8px; font-size: 9px; font-weight: 600; color: #52525b; cursor: pointer; }
+.ag-conn:hover { background: #f4f4f5; }
+.ag-conn__dot { width: 6px; height: 6px; border-radius: 50%; }
+.ag-conn__dot.online { background: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,.2); }
+.ag-conn__dot.offline { background: #dc2626; box-shadow: 0 0 0 2px rgba(220,38,38,.2); }
+
+/* Offline / degraded-mode banner */
+.ag-offline-banner { display: flex; align-items: flex-start; gap: 8px; background: #fffbeb; border-bottom: 1px solid #fcd34d; padding: 8px 12px; }
+.ag-offline-banner__dot { flex-shrink: 0; width: 8px; height: 8px; margin-top: 3px; border-radius: 50%; background: #d97706; animation: ag-offline-pulse 1.4s ease-in-out infinite; }
+@keyframes ag-offline-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.ag-offline-banner__title { font-size: 11px; font-weight: 700; color: #b45309; }
+.ag-offline-banner__sub { font-size: 10px; line-height: 1.35; color: #92700e; margin-top: 2px; }
 
 .ag-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ag-stat { border-radius: 6px; border: 1px solid #e4e4e7; background: #fafafa; padding: 6px; text-align: center; }

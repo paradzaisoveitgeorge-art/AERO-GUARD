@@ -746,6 +746,13 @@ a.stat-card:hover {
 .gds-chip { background: var(--slate-800); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
 .cell-id { font-size: 11px; color: var(--slate-500); font-family: var(--font-mono); margin-top: 2px; }
 
+/* ---------- Policy tier badge ---------- */
+.tier-badge { margin-left: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 1px 7px; border-radius: 999px; vertical-align: middle; border: 1px solid transparent; }
+.tier-badge.PLATINUM { background: linear-gradient(to right, rgba(148,163,184,.25), rgba(226,232,240,.15)); color: #e2e8f0; border-color: rgba(203,213,225,.5); }
+.tier-badge.GOLD { background: rgba(245,158,11,.15); color: var(--amber-400); border-color: rgba(245,158,11,.4); }
+.tier-badge.STANDARD { background: var(--slate-800); color: var(--slate-300); border-color: var(--slate-700); }
+.tier-badge.CUSTOM { background: rgba(99,102,241,.15); color: var(--indigo-300, #a5b4fc); border-color: rgba(99,102,241,.4); }
+
 /* ---------- Full-screen modal (Travelport-style takeover) ---------- */
 .modal-overlay {
   position: fixed; inset: 0; left: 256px; top: 56px; z-index: 40;

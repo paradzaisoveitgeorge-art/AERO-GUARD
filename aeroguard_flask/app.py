@@ -16,6 +16,7 @@ keeps working; the schema is already correct for tenant scoping later.
 from __future__ import annotations
 
 import base64
+import csv
 import io
 import os
 import random
@@ -27,6 +28,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from flask import (
     Flask,
+    Response,
     abort,
     flash,
     redirect,
@@ -355,6 +357,22 @@ def render_provider(template_name, active_nav, **context):
     return render_template(template_name, nav_groups=groups, active_nav=active_nav, **context)
 
 
+def policy_tier(policy_level: str) -> str:
+    """Map the free-text policy_level onto the spec's service-tier naming
+    (Platinum / Gold / Standard). Keyword-based so it copes with both the
+    seed vocabulary (STANDARD / ENTERPRISE / BASIC) and the provisioning-form
+    templates (Full Enterprise / Standard Compliance / Trial / Custom)."""
+    p = (policy_level or "").upper()
+    if "ENTERPRISE" in p or "PLATINUM" in p:
+        return "PLATINUM"
+    if "BASIC" in p or "TRIAL" in p or "LITE" in p:
+        return "STANDARD"
+    if "CUSTOM" in p:
+        return "CUSTOM"
+    # STANDARD / Standard Compliance / anything else → the mid Gold tier
+    return "GOLD"
+
+
 def agency_to_dict(a: Agency) -> dict:
     """Templates were written against dicts — keep that contract."""
     return {
@@ -362,7 +380,8 @@ def agency_to_dict(a: Agency) -> dict:
         "seats": a.seats, "used_seats": a.used_seats, "status": a.status,
         "month_adms": a.month_adms,
         "last_active": humanize(a.updated_at) if a.status != "PROVISIONING" else "—",
-        "policy_level": a.policy_level, "admin_email": a.admin_email,
+        "policy_level": a.policy_level, "policy_tier": policy_tier(a.policy_level),
+        "admin_email": a.admin_email,
     }
 
 
@@ -1175,16 +1194,10 @@ def reset_user_mfa(user_id):
 
 # --- Routes: audits ------------------------------------------------------
 
-@app.route("/provider/audits")
-def provider_audits():
-    range_ = request.args.get("range", "WEEK")
-    filter_agency = request.args.get("agency", "ALL")
-    sort_health = request.args.get("sortHealth") == "1"
-    drill = request.args.get("drill")
-
-    agencies = all_agencies()
+def _audit_rows(filter_agency: str, sort_health: bool) -> list[dict]:
+    """Per-agency audit breakdown — shared by the page and the CSV export."""
     rows = []
-    for a in agencies:
+    for a in all_agencies():
         if filter_agency != "ALL" and a.name != filter_agency:
             continue
         adms = a.month_adms
@@ -1193,10 +1206,46 @@ def provider_audits():
             "agency": a.name, "pcc": a.pcc, "adms": adms,
             "saved": adms * 1800 + 4000, "lost": adms * 400,
             "health": health, "trend": "↑" if adms > 5 else "↓",
+            "tier": policy_tier(a.policy_level),
         })
     if sort_health:
         order = {"AT-RISK": 0, "WATCH": 1, "HEALTHY": 2}
         rows.sort(key=lambda r: order[r["health"]])
+    return rows
+
+
+@app.route("/provider/audits.csv")
+def provider_audits_csv():
+    range_ = request.args.get("range", "WEEK")
+    filter_agency = request.args.get("agency", "ALL")
+    sort_health = request.args.get("sortHealth") == "1"
+    rows = _audit_rows(filter_agency, sort_health)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Agency", "PCC", "Policy tier", "ADMs", "Saved (USD)", "Lost (USD)", "Health", "Trend"])
+    for r in rows:
+        writer.writerow([r["agency"], r["pcc"], r["tier"], r["adms"], r["saved"], r["lost"], r["health"], r["trend"]])
+
+    stamp = datetime.utcnow().strftime("%Y-%m-%d")
+    scope = "all-agencies" if filter_agency == "ALL" else filter_agency.replace(" ", "-")
+    filename = f"AERO-GUARD_ADM-Audit_{scope}_{range_}_{stamp}.csv"
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/provider/audits")
+def provider_audits():
+    range_ = request.args.get("range", "WEEK")
+    filter_agency = request.args.get("agency", "ALL")
+    sort_health = request.args.get("sortHealth") == "1"
+    drill = request.args.get("drill")
+
+    agencies = all_agencies()
+    rows = _audit_rows(filter_agency, sort_health)
 
     return render_provider(
         "provider/audits.html", "AUDITS",

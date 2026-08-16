@@ -8,6 +8,7 @@ let pulse = true;
 let resolved = null; // null | "fixed" | "ignored"
 let ocrStep = "idle"; // idle | scanning | verify | applied
 let previewUrl = null;
+let agOnline = true; // link to the AERO-GUARD server; demo-toggle in footer
 
 function togglePanel() {
   panelOpen = !panelOpen;
@@ -60,6 +61,15 @@ function updateStats() {
 }
 
 function triggerViolation() {
+  if (!agOnline) {
+    // Fail gracefully — never block the agent when the link is down.
+    addCmdLines([
+      "> SCAN :: REQUEST SENT ...",
+      "  !! NO RESPONSE FROM AERO-GUARD (TIMEOUT 3.0s)",
+      "  DEGRADED MODE :: MANUAL QC REQUIRED — BOOKING NOT BLOCKED",
+    ]);
+    return;
+  }
   addCmdLines([
     "> SCAN :: PARSING FARE BASIS Y-FLEX/SU ...",
     "  FARE RULE LOOKUP :: LH-EU-2024",
@@ -67,6 +77,20 @@ function triggerViolation() {
   ]);
   openViolation();
   setPulse(true);
+}
+
+function toggleOffline() {
+  agOnline = !agOnline;
+  document.getElementById("ag-offline-banner").style.display = agOnline ? "none" : "flex";
+  document.getElementById("ag-conn-dot").className = "ag-conn__dot " + (agOnline ? "online" : "offline");
+  document.getElementById("ag-conn-label").textContent = agOnline ? "Link OK" : "Link down";
+  if (!agOnline) {
+    closeViolation();
+    setPulse(false);
+    addCmdLines(["> AG.LINK :: CONNECTION LOST — ENTERING DEGRADED MODE"]);
+  } else {
+    addCmdLines(["> AG.LINK :: CONNECTION RESTORED — LIVE CHECKS RESUMED"]);
+  }
 }
 
 function openViolation() {

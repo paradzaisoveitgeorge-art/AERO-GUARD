@@ -19,6 +19,16 @@
     <button type="button" data-tab="help" onclick="setTab('help')">Help</button>
   </div>
 
+  <!-- Degraded-mode banner: shown when the link to the AERO-GUARD server is
+       down so the agent is warned but never blocked from finishing a booking. -->
+  <div class="ag-offline-banner" id="ag-offline-banner" style="display:none;">
+    <span class="ag-offline-banner__dot"></span>
+    <div>
+      <div class="ag-offline-banner__title">AERO-GUARD Offline &mdash; Manual QC Required</div>
+      <div class="ag-offline-banner__sub">Live compliance checks paused. Complete the booking, then re-scan when the link is restored.</div>
+    </div>
+  </div>
+
   <div class="ag-panel__content">
 
     <!-- Violations / Alerts tab -->
@@ -160,5 +170,10 @@
 
   </div>
 
-  <div class="ag-panel__footer">Agent: J. STERLING &middot; Session HREOU &middot; GDS Travelport</div>
+  <div class="ag-panel__footer">
+    <span>Agent: J. STERLING &middot; Session HREOU</span>
+    <button type="button" class="ag-conn" id="ag-conn" onclick="toggleOffline()" title="Demo: simulate the GDS/AERO-GUARD link dropping">
+      <span class="ag-conn__dot online" id="ag-conn-dot"></span><span id="ag-conn-label">Link OK</span>
+    </button>
+  </div>
 </div>

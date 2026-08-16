@@ -7,6 +7,9 @@
     <h1 class="page-header__title">Agency ADM Audits (AAA)</h1>
     <p class="page-header__subtitle">Track airline debit memos by agency, period and liability</p>
   </div>
+  <a class="btn btn-primary"
+     href="{{ url_for('provider_audits_csv', range=range, agency=filter_agency, sortHealth=('1' if sort_health else '0')) }}"
+     title="Download the per-agency breakdown as a CSV (opens in Excel)">&#8681; Export CSV</a>
 </div>
 
 <form method="get" id="audit-filters" class="range-bar">
@@ -98,6 +101,7 @@ document.querySelectorAll('#audit-filters select[name="agency"]').forEach((sel) 
         <tr>
           <td>
             <a class="agency-link" href="{{ url_for('provider_audits', range=range, agency=filter_agency, sortHealth=('1' if sort_health else '0'), drill=r.agency) }}">{{ r.agency }}</a>
+            <span class="tier-badge {{ r.tier }}">{{ r.tier }}</span>
             <div class="cell-id">{{ r.pcc }}</div>
           </td>
           <td>{{ r.adms }}</td>

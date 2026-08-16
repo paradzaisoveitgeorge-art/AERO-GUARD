@@ -82,7 +82,10 @@
       <tr>
         <td><input type="checkbox" class="row-check" value="{{ a.id }}" onchange="updateBulkBar()" /></td>
         <td>
-          <div style="font-weight:500;">{{ a.name }}</div>
+          <div style="font-weight:500;">
+            {{ a.name }}
+            <span class="tier-badge {{ a.policy_tier }}" title="{{ a.policy_level }}">{{ a.policy_tier }}</span>
+          </div>
           <div class="cell-id">{{ a.id }} &middot; {{ a.policy_level }}</div>
         </td>
         <td style="font-family: var(--font-mono);">{{ a.pcc }}</td>
