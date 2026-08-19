@@ -1,9 +1,0 @@
-# Treat these as binary so Git never applies line-ending conversion (avoids corrupting the files)
-*.pdf   binary
-*.docx  binary
-*.xlsx  binary
-*.zip   binary
-*.png   binary
-*.jpg   binary
-*.jpeg  binary
-*.db    binary
