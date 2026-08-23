@@ -21,7 +21,9 @@ echo ============================================
 echo    AERO-GUARD is starting...
 echo ============================================
 echo.
-echo    Your browser will open in a few seconds.
+echo    Please wait - your browser will open
+echo    automatically once AERO-GUARD is ready.
+echo    (This can take up to a minute the first time.)
 echo.
 echo    Login:
 echo       Email:    soviet@aero-guard.io
@@ -32,7 +34,21 @@ echo.
 echo ============================================
 echo.
 
-REM Open the browser after a short delay, so the server is ready
-start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:5050/login"
+REM Wait until the server is ACTUALLY answering, then open the browser.
+REM This avoids the "This site can't be reached" error that happens when the
+REM browser opens before the server has finished starting on slower computers.
+start "" powershell -NoProfile -WindowStyle Hidden -Command "for ($i=0; $i -lt 120; $i++) { $c = New-Object System.Net.Sockets.TcpClient; try { $c.Connect('127.0.0.1', 5050); Start-Process 'http://localhost:5050/login'; $c.Close(); break } catch { $c.Close(); Start-Sleep -Milliseconds 700 } }"
 
 python app.py
+
+REM If we get here, AERO-GUARD has stopped (or failed to start). Keep the
+REM window open so any error messages above stay visible for the user.
+echo.
+echo ============================================
+echo    AERO-GUARD has stopped.
+echo ============================================
+echo.
+echo    If you did not close it yourself, please read any
+echo    messages above and share them with your developer.
+echo.
+pause
