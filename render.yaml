@@ -38,7 +38,7 @@ services:
           name: aero-guard-db
           property: connectionString
       - key: PYTHON_VERSION
-        value: 3.11.2
+        value: 3.11.9
       - key: AEROGUARD_STREAM
         value: "1"            # keep the simulated GDS event stream on
       - key: AEROGUARD_STREAM_MIN_S
