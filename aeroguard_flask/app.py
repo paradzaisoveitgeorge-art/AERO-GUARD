@@ -157,7 +157,7 @@ def inject_user():
 
 # Public endpoints that never require login. Everything else under
 # /provider/* and / is locked down by the before_request guard below.
-PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "static"}
+PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "_diag", "static"}
 
 
 @app.errorhandler(403)
