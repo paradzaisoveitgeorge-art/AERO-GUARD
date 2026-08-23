@@ -1488,6 +1488,37 @@ def cli_reset_demo():
     print("Demo data reset.")
 
 
+# --- Auto-seed on first boot ---------------------------------------------
+
+def _auto_seed_if_empty():
+    """Load the demo data automatically when the database is empty.
+
+    Runs at import time so it also fires under gunicorn on hosted
+    deployments (e.g. Render free tier), where there is no shell to run
+    ``flask seed`` by hand. Guards:
+    1. Skip during CLI commands (``flask db upgrade`` / ``flask seed``).
+    2. In dev, only run in the reloader's child process.
+    3. Only seed when the users table is empty, so existing data is never
+       wiped on a redeploy.
+    Any error is logged and swallowed so it can never block startup.
+    """
+    if os.environ.get("FLASK_RUN_FROM_CLI") == "true":
+        return
+    if app.config["DEBUG"] and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+    try:
+        with app.app_context():
+            if User.query.count() == 0:
+                from seed import seed_all
+                seed_all()
+                app.logger.info("Auto-seeded demo data (empty database detected).")
+    except Exception as exc:  # never block startup on a seed problem
+        app.logger.warning("Auto-seed skipped: %s", exc)
+
+
+_auto_seed_if_empty()
+
+
 # --- Background event stream (Section 7) ---------------------------------
 
 def _maybe_start_stream():

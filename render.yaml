@@ -22,7 +22,7 @@ services:
     plan: free                # bump to `starter` for zero cold starts + custom domain
     runtime: python
     rootDir: aeroguard_flask  # Flask app lives here, not at repo root
-    buildCommand: pip install -r requirements.txt && flask db upgrade && flask seed
+    buildCommand: pip install -r requirements.txt && flask db upgrade
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 60 --access-logfile - --error-logfile -
     healthCheckPath: /healthz
     autoDeploy: true          # deploy on every push to main
