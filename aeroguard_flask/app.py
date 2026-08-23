@@ -1470,6 +1470,26 @@ def healthz():
     return {"status": "ok"}, 200
 
 
+@app.route("/_diag")
+def _diag():
+    """TEMPORARY diagnostic — remove after deploy troubleshooting."""
+    import traceback as _tb
+    out = {}
+    try:
+        out["users"] = User.query.count()
+    except Exception as exc:  # noqa: BLE001
+        out["users_error"] = repr(exc)
+    if request.args.get("run") == "1":
+        try:
+            from seed import seed_all
+            seed_all()
+            out["seed"] = "ok"
+            out["users_after"] = User.query.count()
+        except Exception:  # noqa: BLE001
+            out["seed_error"] = _tb.format_exc()[-1800:]
+    return out, 200
+
+
 # --- CLI commands --------------------------------------------------------
 
 @app.cli.command("seed")
