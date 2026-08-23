@@ -1485,8 +1485,9 @@ def _diag():
             seed_all()
             out["seed"] = "ok"
             out["users_after"] = User.query.count()
-        except Exception:  # noqa: BLE001
-            out["seed_error"] = _tb.format_exc()[-1800:]
+        except Exception as exc:  # noqa: BLE001
+            out["seed_error_msg"] = str(getattr(exc, "orig", exc))[:500]
+            out["seed_error_type"] = type(exc).__name__
     return out, 200
 
 
