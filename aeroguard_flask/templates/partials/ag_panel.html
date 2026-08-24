@@ -45,10 +45,21 @@
         <span class="ag-violation-card__bang">!</span>
         <div style="flex:1;">
           <div class="ag-violation-card__title">Min Stay Rule Breach</div>
-          <div class="ag-violation-card__segment">Segment 03 &middot; LH 902 FRALON</div>
+          <div class="ag-violation-card__segment">Segment 03 &middot; LH 902 FRALON &middot; Gold policy</div>
         </div>
         <span class="ag-violation-card__amount">$450</span>
       </button>
+
+      <!-- QC warning with one-click auto-append: the plugin writes the
+           missing element's exact command into the terminal for the agent. -->
+      <div class="ag-violation-card ag-violation-card--warn" id="qc-email-card">
+        <span class="ag-violation-card__bang warn">&#9888;</span>
+        <div style="flex:1;">
+          <div class="ag-violation-card__title">Missing contact email (APE)</div>
+          <div class="ag-violation-card__segment">Agency QC rule &middot; required before ticketing</div>
+        </div>
+        <button type="button" class="ag-autofix-btn" onclick="autoAppendEmail(event)">Auto-append</button>
+      </div>
 
       <div class="ag-recent">
         <div class="ag-recent__title">Recent activity</div>
@@ -85,16 +96,16 @@
 
       <div id="passport-verify" style="display:none;">
         <div class="ag-verify-table">
-          <div class="ag-verify-table__header">Verify before push</div>
+          <div class="ag-verify-table__header">Verify before push &middot; <span class="ag-verify-table__hint">click any field to correct a misread</span></div>
           <table>
             <tbody>
-              <tr><td class="k">Surname</td><td class="v">DEMHE</td></tr>
-              <tr><td class="k">Given</td><td class="v">PATRICK JOHN</td></tr>
-              <tr><td class="k">Nationality</td><td class="v">ZWE</td></tr>
-              <tr><td class="k">DOB</td><td class="v">14 MAR 1988</td></tr>
-              <tr><td class="k">Sex</td><td class="v">M</td></tr>
-              <tr><td class="k">Passport #</td><td class="v">FN438201</td></tr>
-              <tr><td class="k">Expiry</td><td class="v">22 SEP 2029</td></tr>
+              <tr><td class="k">Surname</td><td class="v"><input class="ag-verify-input" id="pp-surname" value="DEMHE" /></td></tr>
+              <tr><td class="k">Given</td><td class="v"><input class="ag-verify-input" id="pp-given" value="PATRICK JOHN" /></td></tr>
+              <tr><td class="k">Nationality</td><td class="v"><input class="ag-verify-input" id="pp-nat" value="ZWE" maxlength="3" /></td></tr>
+              <tr><td class="k">DOB</td><td class="v"><input class="ag-verify-input" id="pp-dob" value="14 MAR 1988" /></td></tr>
+              <tr><td class="k">Sex</td><td class="v"><input class="ag-verify-input" id="pp-sex" value="M" maxlength="1" /></td></tr>
+              <tr><td class="k">Passport #</td><td class="v"><input class="ag-verify-input" id="pp-num" value="FN438201" /></td></tr>
+              <tr><td class="k">Expiry</td><td class="v"><input class="ag-verify-input" id="pp-exp" value="22 SEP 2029" /></td></tr>
             </tbody>
           </table>
           <div class="ag-mrz">
@@ -142,6 +153,40 @@
         <button type="button" class="rescan" onclick="clearTravellers()">Clear</button>
       </div>
       <div id="trav-applied" class="ag-applied" style="display:none;">&check; Names pushed to PNR</div>
+
+      <!-- Edit name & remarks: enabled only when the validating carrier
+           permits changes AND the ticket has not been issued. After
+           ticketing it is always locked, with what-to-do guidance. -->
+      <div class="ag-editname">
+        <div class="ag-recent__title" style="margin:14px 0 8px;">Edit name &amp; remarks</div>
+        <div class="ag-trav-form__row">
+          <select id="en-pax">
+            <option value="1.1 DEMHE/PATRICK">1.1 DEMHE/PATRICK</option>
+          </select>
+          <select id="en-airline" onchange="updateEditNameState()">
+            <option value="LH" selected>LH &middot; Lufthansa</option>
+            <option value="ET">ET &middot; Ethiopian</option>
+            <option value="EK">EK &middot; Emirates</option>
+          </select>
+        </div>
+        <label class="ag-editname__tkt">
+          <input type="checkbox" id="en-ticketed" onchange="updateEditNameState()" />
+          Ticket already issued <span class="dim">(demo toggle &mdash; a live PNR reports this itself)</span>
+        </label>
+        <button type="button" id="en-open-btn" class="ag-trav-form__btn" onclick="openEditName()">Edit name &amp; remarks</button>
+        <div id="en-reason" class="ag-editname__reason"></div>
+        <div id="en-form" style="display:none;">
+          <div class="ag-trav-form__row">
+            <input type="text" id="en-surname" placeholder="Corrected surname" />
+            <input type="text" id="en-given" placeholder="Corrected given names" />
+          </div>
+          <input type="text" id="en-remark" class="ag-editname__remark" placeholder="Remark (e.g. NAME CORRECTED PER PASSPORT)" />
+          <div class="ag-trav-actions" style="display:flex;">
+            <button type="button" class="apply" onclick="applyEditName()">Apply to PNR</button>
+            <button type="button" class="rescan" onclick="closeEditName()">Cancel</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Itinerary tab -->
@@ -251,8 +296,12 @@
 
   <div class="ag-panel__footer">
     <span>Agent: J. STERLING &middot; Session HREOU</span>
-    <button type="button" class="ag-conn" id="ag-conn" onclick="toggleOffline()" title="Demo: simulate the GDS/AERO-GUARD link dropping">
-      <span class="ag-conn__dot online" id="ag-conn-dot"></span><span id="ag-conn-label">Link OK</span>
-    </button>
+    <div class="ag-panel__footer-actions">
+      <button type="button" class="ag-foot-btn" onclick="chatWithContext()" title="Open live chat with the helpdesk — your PNR context is attached automatically">&#128172; Live chat</button>
+      <button type="button" class="ag-foot-btn" onclick="notifyHelpdesk('Consultant assistance requested from #AG panel', 'MED')" title="Queue-on-Demand: file a helpdesk ticket without leaving the GDS">&#128681; Notify Helpdesk</button>
+      <button type="button" class="ag-conn" id="ag-conn" onclick="toggleOffline()" title="Demo: simulate the GDS/AERO-GUARD link dropping">
+        <span class="ag-conn__dot online" id="ag-conn-dot"></span><span id="ag-conn-label">Link OK</span>
+      </button>
+    </div>
   </div>
 </div>

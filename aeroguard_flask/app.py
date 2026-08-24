@@ -809,6 +809,86 @@ def smartpoint_demo():
     return render_template("smartpoint.html", tutorials=TUTORIALS)
 
 
+# The demo consultant terminal is bound to Skylink Travel under AERO-GUARD
+# HQ — the tenant mapping a real GDS plugin would derive from its PCC.
+DEMO_TERMINAL = {"provider_id": "PRV-AG", "agency": "Skylink Travel", "pcc": "HREOU"}
+
+
+@app.route("/api/consultant/notify-helpdesk", methods=["POST"])
+def consultant_notify_helpdesk():
+    """#AG Queue-on-Demand: file a real escalation carrying the PNR context
+    so it appears on the provider's Escalations queue instantly."""
+    payload = request.get_json(silent=True) or {}
+    pnr = (payload.get("pnr") or "—").upper()[:20]
+    subject = (payload.get("subject") or "Consultant assistance requested")[:200]
+    priority = "HIGH" if payload.get("severity") == "CRITICAL" else "MED"
+    new_id = f"ESC-{random.randint(8000, 8999)}"
+    e = Escalation(
+        id=new_id,
+        provider_id=DEMO_TERMINAL["provider_id"],
+        agency=DEMO_TERMINAL["agency"],
+        pnr=pnr,
+        subject=f"[#AG] {subject}",
+        level="L1",
+        priority=priority,
+        opened="just now",
+        status="OPEN",
+        sla="4 hr left",
+    )
+    e.sla_due_at = datetime.utcnow() + timedelta(hours=4)
+    db.session.add(e)
+    # write_audit() tags rows with the actor's provider, which a consultant
+    # doesn't have — log against the terminal's tenant instead.
+    db.session.add(AuditLog(
+        provider_id=DEMO_TERMINAL["provider_id"],
+        actor_user_id=getattr(current_user, "id", None),
+        action="AG_NOTIFY_HELPDESK",
+        target_type="escalation",
+        target_id=new_id,
+        note=f"PNR {pnr} · {subject}",
+    ))
+    db.session.commit()
+    return jsonify({
+        "status": "QUEUED",
+        "ticket_id": new_id,
+        "message": "Escalation logged. Helpdesk supervisor notified. Average review time: 4 minutes.",
+    })
+
+
+@app.route("/api/consultant/chat-context", methods=["POST"])
+def consultant_chat_context():
+    """#AG live-chat bridge: push the consultant's PNR context into the
+    provider-side support thread (the Agency Portal chat lands in a later
+    batch — the deep-link contract is already honoured here)."""
+    payload = request.get_json(silent=True) or {}
+    pnr = (payload.get("pnr") or "—").upper()[:20]
+    text = (payload.get("message") or f"Chat opened from #AG · PNR {pnr}")[:255]
+    t = (Thread.query
+         .filter_by(provider_id=DEMO_TERMINAL["provider_id"], agency=DEMO_TERMINAL["agency"])
+         .first())
+    if t is None:
+        t = Thread(id=f"T-{random.randint(100, 999)}",
+                   provider_id=DEMO_TERMINAL["provider_id"],
+                   agency=DEMO_TERMINAL["agency"],
+                   agent=getattr(current_user, "name", "Agent"),
+                   unread=0, last="")
+        db.session.add(t)
+        db.session.flush()
+    m = Message(thread_id=t.id, sender="AGENT", text=text,
+                t=datetime.utcnow().strftime("%H:%M"))
+    db.session.add(m)
+    t.unread = (t.unread or 0) + 1
+    t.last = text
+    db.session.commit()
+    deep_link = f"/provider/respond?pnr={pnr}&agency={DEMO_TERMINAL['agency'].replace(' ', '+')}"
+    return jsonify({
+        "status": "OK",
+        "thread_id": t.id,
+        "deep_link": deep_link,
+        "message": "Support chat updated — the helpdesk sees your PNR context.",
+    })
+
+
 # --- Routes: provider dashboard -------------------------------------------
 
 @app.route("/provider")

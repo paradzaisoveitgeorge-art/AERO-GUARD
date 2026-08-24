@@ -229,12 +229,20 @@ document.addEventListener("paste", (e) => {
 });
 
 function applyPassport() {
+  // Read the (correctable) verify fields — the OCR fallback rule: the agent
+  // can type over any misread before it commits to the SSR DOCS string.
+  const v = (id) => document.getElementById(id).value.trim().toUpperCase();
+  const surname = v("pp-surname") || "DEMHE";
+  const given = (v("pp-given") || "PATRICK").replace(/\s+/g, "/");
+  const nat = v("pp-nat") || "ZWE";
   ocrStep = "applied";
   document.getElementById("passport-actions").style.display = "none";
   document.getElementById("passport-applied").style.display = "block";
   addCmdLines([
-    "> 3-DEMHE/PATRICK",
-    "> DOCS S-P-ZWE-FN438201-ZWE-14 MAR 1988-M-22 SEP 2029-DEMHE-PATRICK/JOHN",
+    "> 3-" + surname + "/" + given.split("/")[0],
+    "> DOCS S-P-" + nat + "-" + (v("pp-num") || "FN438201") + "-" + nat + "-" +
+      (v("pp-dob") || "14 MAR 1988") + "-" + (v("pp-sex") || "M") + "-" +
+      (v("pp-exp") || "22 SEP 2029") + "-" + surname + "-" + given,
     "  NAME ELEMENT PUSHED · DOCS SSR ATTACHED",
     "  AG :: DATA-FILL COMPLETE · PII WIPED FROM CACHE",
   ]);
@@ -319,6 +327,14 @@ function addTraveller() {
   const cat = travCategory(dob);
   if (!cat) return showTravErr("That date of birth looks invalid.");
 
+  // Airline manifest limit: standard GDS cap of 9 seated passengers per
+  // PNR (infants ride on an adult's seat and don't count).
+  const MANIFEST_LIMIT = 9;
+  const seated = travellers.filter((t) => t.cat !== "INF").length;
+  if (cat !== "INF" && seated >= MANIFEST_LIMIT) {
+    return showTravErr("Airline manifest limit reached (max " + MANIFEST_LIMIT + " seated passengers per PNR) — split the booking.");
+  }
+
   let assocTo = null;
   if (cat === "INF") {
     const adult = travellers.find((t) => t.cat === "ADT");
@@ -398,6 +414,197 @@ function clearTravellers() {
   renderTravellers();
 }
 
+// ---------- #AG command interceptor ----------
+// The terminal listens for typed commands, mirroring a Smartpoint plugin's
+// Terminal.OnCommand hook: #AG opens the panel, ET runs the pre-ET scan.
+let cmdBuffer = "";
+
+function renderCmdInput() {
+  const el = document.getElementById("cmd-input");
+  if (el) el.textContent = cmdBuffer;
+}
+
+function runCommand(raw) {
+  const cmd = raw.trim().toUpperCase();
+  if (!cmd) return;
+  addCmdLines(["> " + cmd]);
+  if (cmd === "#AG") {
+    if (!panelOpen) togglePanel();
+    addCmdLines([
+      "  AG :: COMMAND INTERCEPTED — SMART PANEL OPENED",
+      "  CONTEXT :: PCC HREOU · PNR H2ML1J · POLICY GOLD (SKYLINK TRAVEL)",
+    ]);
+  } else if (cmd === "ET" || cmd === "ER") {
+    addCmdLines(["  AG :: PRE-TICKETING SCAN INTERCEPTED " + cmd + " ..."]);
+    triggerViolation();
+  } else {
+    addCmdLines(["  COMMAND SIMULATED — DEMO TERMINAL (TRY #AG OR ET)"]);
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === "Enter") {
+    const cmd = cmdBuffer;
+    cmdBuffer = "";
+    renderCmdInput();
+    runCommand(cmd);
+  } else if (e.key === "Backspace") {
+    e.preventDefault(); // keep the browser from navigating back
+    cmdBuffer = cmdBuffer.slice(0, -1);
+    renderCmdInput();
+  } else if (e.key.length === 1) {
+    cmdBuffer += e.key.toUpperCase();
+    renderCmdInput();
+  }
+});
+
+// ---------- Edit name & remarks (post-creation corrections) ----------
+// Airline-allows matrix for the demo. After ticketing the action is ALWAYS
+// locked — airlines do not permit name changes on an issued ticket.
+const NAME_CHANGE_RULES = {
+  LH: { allows: true,  note: "LH permits name corrections (up to 3 characters) before ticketing." },
+  ET: { allows: true,  note: "ET permits documented name corrections before ticketing." },
+  EK: { allows: false, note: "EK does not permit name changes after PNR creation — cancel and rebook." },
+};
+
+function updateEditNameState() {
+  const airline = document.getElementById("en-airline").value;
+  const ticketed = document.getElementById("en-ticketed").checked;
+  const btn = document.getElementById("en-open-btn");
+  const reason = document.getElementById("en-reason");
+  const rule = NAME_CHANGE_RULES[airline];
+  closeEditName();
+
+  if (ticketed) {
+    btn.disabled = true;
+    reason.className = "ag-editname__reason locked";
+    reason.innerHTML =
+      "&#128274; Name changes are not permitted after a ticket has been issued." +
+      "<br/>What to do: <b>void the ticket and rebook</b>, or <b>contact " + airline + " directly</b>." +
+      ' <span class="dim">(Final airline-specific guidance to be confirmed with AERO-GUARD.)</span>';
+  } else if (!rule.allows) {
+    btn.disabled = true;
+    reason.className = "ag-editname__reason locked";
+    reason.innerHTML = "&#128274; " + rule.note;
+  } else {
+    btn.disabled = false;
+    reason.className = "ag-editname__reason ok";
+    reason.innerHTML = "&check; " + rule.note;
+  }
+}
+
+function openEditName() {
+  const btn = document.getElementById("en-open-btn");
+  if (btn.disabled) return;
+  document.getElementById("en-form").style.display = "block";
+}
+
+function closeEditName() {
+  const form = document.getElementById("en-form");
+  if (form) form.style.display = "none";
+}
+
+function applyEditName() {
+  const pax = document.getElementById("en-pax").value;
+  const surname = document.getElementById("en-surname").value.trim().toUpperCase();
+  const given = document.getElementById("en-given").value.trim().toUpperCase();
+  const remark = document.getElementById("en-remark").value.trim().toUpperCase();
+  if (!surname && !given && !remark) return;
+
+  const lines = [];
+  if (surname || given) {
+    lines.push("> NC." + pax.replace(" ", "") + " → " + (surname || "DEMHE") + "/" + (given || "PATRICK"));
+  }
+  if (remark) lines.push("> NP." + remark);
+  lines.push("  ELEMENT(S) UPDATED · CHANGE LOGGED TO AGENCY AUDIT TRAIL");
+  addCmdLines(lines);
+
+  const recent = document.querySelector(".ag-recent ul");
+  if (recent) {
+    const li = document.createElement("li");
+    li.innerHTML = "&#9998; Name/remark edit · " + pax + " · " + document.getElementById("en-airline").value;
+    recent.insertBefore(li, recent.firstChild);
+  }
+  document.getElementById("en-surname").value = "";
+  document.getElementById("en-given").value = "";
+  document.getElementById("en-remark").value = "";
+  closeEditName();
+}
+
+// ---------- One-click auto-append (missing-element fix) ----------
+function autoAppendEmail(e) {
+  e.stopPropagation();
+  addCmdLines([
+    "> 3.APE-PATRICK@SKYLINK.ZW",
+    "  CONTACT EMAIL APPENDED · QC WARNING CLEARED",
+  ]);
+  const card = document.getElementById("qc-email-card");
+  if (card) card.remove();
+}
+
+// ---------- Helpdesk bridge (Queue-on-Demand + live chat context) ----------
+function csrfToken() {
+  const m = document.querySelector('meta[name="csrf-token"]');
+  return m ? m.content : "";
+}
+
+async function notifyHelpdesk(subject, severity) {
+  if (!agOnline) {
+    addCmdLines(["  !! AG OFFLINE — QUEUE-ON-DEMAND UNAVAILABLE · CALL SUPPORT"]);
+    return;
+  }
+  addCmdLines(["> AG.HELPDESK :: NOTIFY — " + subject.toUpperCase()]);
+  try {
+    const r = await fetch("/api/consultant/notify-helpdesk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+      body: JSON.stringify({ pnr: "H2ML1J", subject: subject, severity: severity }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    addCmdLines([
+      "  TICKET " + j.ticket_id + " CREATED · SUPERVISOR NOTIFIED",
+      "  AVG REVIEW TIME :: 4 MIN · TRACK ON PROVIDER ESCALATIONS QUEUE",
+    ]);
+    const recent = document.querySelector(".ag-recent ul");
+    if (recent) {
+      const li = document.createElement("li");
+      li.innerHTML = "&#128681; Helpdesk notified · " + j.ticket_id;
+      recent.insertBefore(li, recent.firstChild);
+    }
+  } catch (err) {
+    addCmdLines(["  !! HELPDESK NOTIFY FAILED — RETRY OR CALL SUPPORT"]);
+  }
+}
+
+async function chatWithContext() {
+  if (!agOnline) {
+    addCmdLines(["  !! AG OFFLINE — LIVE CHAT UNAVAILABLE"]);
+    return;
+  }
+  addCmdLines(["> AG.CHAT :: OPENING SUPPORT CHAT · ATTACHING PNR H2ML1J"]);
+  try {
+    const r = await fetch("/api/consultant/chat-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+      body: JSON.stringify({ pnr: "H2ML1J", message: "Live chat opened from #AG · PNR H2ML1J · needs assistance" }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    addCmdLines([
+      "  CHAT CONTEXT SENT · THREAD " + j.thread_id,
+      "  DEEP-LINK :: " + j.deep_link,
+      "  HELPDESK SEES YOUR PNR — REPLY ARRIVES IN THIS PANEL",
+    ]);
+  } catch (err) {
+    addCmdLines(["  !! CHAT BRIDGE FAILED — USE EMAIL SUPPORT"]);
+  }
+}
+
 // Auto-trigger a violation a few seconds in so the demo feels live, same as the source.
 setTimeout(triggerViolation, 2200);
 updateStats();
+updateEditNameState();

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smartpoint &middot; AERO-GUARD</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
   {% include "partials/_head_meta.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/smartpoint.css') }}" />
@@ -92,7 +93,8 @@
       <div class="sp-cmd-body" id="cmd-body">
         <p class="cmd-line indigo">&gt; AERO-GUARD :: SESSION ATTACHED &middot; PNR H2ML1J</p>
         <p class="cmd-line indigo">&gt; MONITORING ACTIVE &middot; LISTENING FOR FARE/RULE EVENTS</p>
-        <p class="cmd-line def">&gt;<span class="cmd-cursor">&#9608;</span></p>
+        <p class="cmd-line indigo">&gt; TIP :: TYPE #AG + ENTER TO OPEN THE SMART PANEL &middot; ET RUNS THE PRE-TICKETING SCAN</p>
+        <p class="cmd-line def">&gt;&nbsp;<span id="cmd-input"></span><span class="cmd-cursor">&#9608;</span></p>
       </div>
 
       {% include "partials/ag_panel.html" %}

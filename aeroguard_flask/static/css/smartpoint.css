@@ -311,3 +311,51 @@
 .sp-statusbar .active { color: #4f46e5; font-weight: 700; }
 .sp-statusbar .fixed { color: #059669; font-weight: 600; }
 .sp-statusbar .ignored { color: #d97706; font-weight: 600; }
+
+/* ---------- Batch 2: #AG refinements ---------- */
+
+/* Editable OCR verify fields (manual-correction fallback) */
+.ag-verify-table__hint { font-weight: 400; color: #a1a1aa; text-transform: none; letter-spacing: 0; }
+.ag-verify-input {
+  width: 100%; border: 1px solid transparent; border-radius: 4px; background: transparent;
+  font-family: var(--font-mono); font-size: 11px; color: #27272a; padding: 1px 4px;
+}
+.ag-verify-input:hover { border-color: #e4e4e7; background: #fafafa; }
+.ag-verify-input:focus { outline: none; border-color: #4f46e5; background: white; box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+
+/* QC warning card + one-click auto-append */
+.ag-violation-card--warn { background: #fffbeb; border-color: #fde68a; cursor: default; display: flex; gap: 8px; align-items: center; width: 100%; border-radius: 8px; border: 1px solid #fde68a; padding: 10px; text-align: left; margin-top: 8px; }
+.ag-violation-card--warn:hover { background: #fef3c7; }
+.ag-violation-card--warn .ag-violation-card__title { color: #92400e; }
+.ag-violation-card__bang.warn { background: #f59e0b; }
+.ag-autofix-btn {
+  border: none; border-radius: 6px; background: #4f46e5; color: white; font-size: 10px;
+  font-weight: 700; padding: 5px 10px; cursor: pointer; margin-left: auto; white-space: nowrap;
+}
+.ag-autofix-btn:hover { background: #4338ca; }
+
+/* Edit name & remarks */
+.ag-editname { border-top: 1px dashed #e4e4e7; margin-top: 12px; padding-top: 2px; }
+.ag-editname select { width: 100%; border: 1px solid #d4d4d8; border-radius: 6px; padding: 6px 8px; font-size: 11px; color: #27272a; background: white; }
+.ag-editname__tkt { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #52525b; margin: 8px 0; cursor: pointer; }
+.ag-editname__tkt .dim, .ag-editname__reason .dim { color: #a1a1aa; font-weight: 400; }
+.ag-editname__reason { margin-top: 8px; border-radius: 6px; padding: 8px 10px; font-size: 10.5px; line-height: 1.5; }
+.ag-editname__reason.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.ag-editname__reason.locked { background: #f4f4f5; border: 1px solid #e4e4e7; color: #52525b; }
+.ag-editname__remark { width: 100%; margin-top: 6px; border: 1px solid #d4d4d8; border-radius: 6px; padding: 7px 8px; font-size: 11px; }
+.ag-editname .ag-trav-form__btn:disabled,
+.ag-trav-form__btn:disabled { background: #d4d4d8; color: #71717a; cursor: not-allowed; }
+#en-form { margin-top: 8px; }
+
+/* Panel footer actions (live chat + notify helpdesk) */
+.ag-panel__footer-actions { display: flex; align-items: center; gap: 6px; }
+.ag-foot-btn {
+  border: 1px solid #d4d4d8; background: white; border-radius: 999px; padding: 2px 8px;
+  font-size: 9px; font-weight: 600; color: #4f46e5; cursor: pointer; white-space: nowrap;
+}
+.ag-foot-btn:hover { background: #eef2ff; border-color: #c7d2fe; }
+
+/* Violation modal: tier context + remediation steps */
+.sp-violation-tier { color: #b45309; font-weight: 700; letter-spacing: .02em; }
+.sp-violation-steps { margin: 10px 0 0; padding-left: 18px; font-size: 11px; color: #52525b; line-height: 1.6; }
+.sp-violation-steps code { font-family: var(--font-mono); background: #f4f4f5; border-radius: 3px; padding: 0 4px; font-size: 10px; }

@@ -22,18 +22,18 @@ demo Batches 1–3 are not rebuilt.
 
 | # | Status | Update | Detail |
 |---|--------|--------|--------|
-| SB-1 | ⬜ | `#AG` command trigger | Typing `#AG` in the Smartpoint terminal command line opens the panel (command interceptor), in addition to the floating button |
-| SB-2 | ⬜ | **Edit Name & Remarks flow** | Client's explicit p.32 ask: bottom of Add-Pax has "Edit name / remarks". Clickable when the airline allows changes; **greyed out** when the airline forbids them; after ticketing always greyed out **plus** a guidance notice (void ticket & rebook / contact airline — final wording pending from client) |
-| SB-3 | 🟡 | OCR manual-edit fallback | Passport "Verify before push" values become editable so the agent can correct a misread before Apply-to-PNR (currently read-only) |
-| SB-4 | 🟡 | One-click Auto-Fix | Per-violation **Auto-append** button that injects the exact fix command into the terminal (e.g. `3.AP-EMAIL…`); modal today has only a generic "apply fix" |
-| SB-5 | ⬜ | Notify Helpdesk (Queue-on-Demand) | Button inside the #AG panel that creates a real escalation ticket with PNR context, without leaving the GDS |
-| SB-6 | ⬜ | Chat deep-link with context | Panel footer live-chat link carries `?pnr=…&agency=…` so support opens pre-loaded with the booking |
+| SB-1 | ✅ 2026-08-24 | `#AG` command trigger | Typing `#AG` in the Smartpoint terminal command line opens the panel (command interceptor), in addition to the floating button. Bonus: `ET`/`ER` runs the pre-ticketing scan per TRD §3.1 |
+| SB-2 | ✅ 2026-08-24 | **Edit Name & Remarks flow** | Client's explicit p.32 ask: bottom of Add-Pax has "Edit name / remarks". Clickable when the airline allows changes; **greyed out** when the airline forbids them; after ticketing always greyed out **plus** a guidance notice (void ticket & rebook / contact airline — final wording pending from client) |
+| SB-3 | ✅ 2026-08-24 | OCR manual-edit fallback | Passport "Verify before push" values become editable so the agent can correct a misread before Apply-to-PNR (corrections flow into the DOCS SSR string) |
+| SB-4 | ✅ 2026-08-24 | One-click Auto-Fix | Per-violation **Auto-append** button that injects the exact fix command into the terminal (e.g. `3.APE-…`) — QC warning card clears once appended |
+| SB-5 | ✅ 2026-08-24 | Notify Helpdesk (Queue-on-Demand) | Button inside the #AG panel (and violation modal) creates a real escalation ticket with PNR context on the provider queue, without leaving the GDS |
+| SB-6 | ✅ 2026-08-24 | Chat deep-link with context | Panel footer live chat pushes the PNR context into the provider support thread; deep-link contract `?pnr=…&agency=…` honoured (full Agency-Portal chat arrives with Batch 3/4) |
 | SB-7 | ⬜ | Airline logo per segment | Itinerary maps carrier code → official airline logo on each flight segment row |
 | SB-8 | ⬜ | Baggage allowance per segment | Auto-inject the carrier's piece/weight concept (e.g. 2PC) per segment on multi-carrier itineraries |
 | SB-9 | ⬜ | Transit-visa warning | Multi-stop itineraries warn when the nationality needs a transit visa (reuses the visa dataset) |
 | SB-10 | ⬜ | Trust-badge placement toggle | Agency-level setting: "Verified & Secured by AERO-GUARD" shown prominently or as a subtle footer mark |
-| SB-11 | 🟡 | Tier-contextual violation popup | Violation modal shows penalty **contextualised by policy tier** (e.g. "POINT OF COMMENCEMENT VIOLATION — USD 300 · Platinum Policy") + step-by-step remediation |
-| SB-12 | ⬜ | Manifest limits | Enforce airline-specific max passengers per PNR in the Travellers builder |
+| SB-11 | ✅ 2026-08-24 | Tier-contextual violation popup | Violation modal shows penalty **contextualised by policy tier** ("GOLD POLICY · SKYLINK TRAVEL" chip) + numbered step-by-step remediation |
+| SB-12 | ✅ 2026-08-24 | Manifest limits | Travellers builder enforces the 9-seated-passenger GDS cap per PNR (infants excluded) with a split-booking prompt |
 | SB-13 | ✅ | Offline circuit breaker | Exists (degraded-mode banner); verify it matches spec: 3-second timeout → amber "AERO-GUARD Offline: Manual QC Required", never blocks the agent |
 
 ## C. Agency Portal — NEW third tier

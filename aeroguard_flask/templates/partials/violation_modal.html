@@ -11,13 +11,13 @@
     <div class="sp-violation-modal__body">
       <div>
         <h3>Min Stay Rule Breach</h3>
-        <p class="seg">Segment 03 &middot; LH 902 FRALON</p>
+        <p class="seg">Segment 03 &middot; LH 902 FRALON &middot; <span class="sp-violation-tier">GOLD POLICY &middot; SKYLINK TRAVEL</span></p>
       </div>
       <p class="explain">Fare basis Y-FLEX/SU requires a Sunday stayover. Current itinerary returns Friday 22OCT &mdash; issuance will trigger an ADM from LH.</p>
       <div class="sp-violation-fixbox">
         <div class="sp-violation-fixbox__row">
           <div>
-            <div class="label">Potential ADM</div>
+            <div class="label">Potential ADM &middot; Gold tier</div>
             <div class="penalty">$450.00</div>
           </div>
           <div>
@@ -27,10 +27,16 @@
         </div>
         <div class="sp-violation-fixbox__cmd">FXX/S2,3/R,Y-PROMO</div>
       </div>
+      <ol class="sp-violation-steps">
+        <li>Apply the suggested fare basis (one-click below writes the command for you).</li>
+        <li>Re-price the PNR (<code>FQ</code>) and confirm the fare difference with the client.</li>
+        <li>Re-scan (<code>#AG</code> &rarr; Re-scan PNR) before End Transaction.</li>
+      </ol>
       <div class="sp-violation-actions" id="violation-primary-actions">
         <button type="button" class="apply-fix" onclick="applyFix()">Apply One-Click Fix</button>
         <div class="row">
           <button type="button" onclick="showOverrideReason()">Continue with booking&hellip;</button>
+          <button type="button" onclick="notifyHelpdesk('Min Stay Rule Breach — assistance requested', 'CRITICAL'); closeViolation();">Notify Helpdesk</button>
           <button type="button" onclick="alert('Fare basis Y-FLEX/SU requires a Sunday stayover. Current itinerary returns Friday 22OCT — issuance will trigger an ADM from LH.')">Why?</button>
         </div>
       </div>
