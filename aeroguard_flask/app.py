@@ -157,7 +157,7 @@ def inject_user():
 
 # Public endpoints that never require login. Everything else under
 # /provider/* and / is locked down by the before_request guard below.
-PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "_diag", "static"}
+PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "static"}
 
 
 @app.errorhandler(403)
@@ -1468,27 +1468,6 @@ def reply_thread(thread_id):
 @app.route("/healthz")
 def healthz():
     return {"status": "ok"}, 200
-
-
-@app.route("/_diag")
-def _diag():
-    """TEMPORARY diagnostic — remove after deploy troubleshooting."""
-    import traceback as _tb
-    out = {}
-    try:
-        out["users"] = User.query.count()
-    except Exception as exc:  # noqa: BLE001
-        out["users_error"] = repr(exc)
-    if request.args.get("run") == "1":
-        try:
-            from seed import seed_all
-            seed_all()
-            out["seed"] = "ok"
-            out["users_after"] = User.query.count()
-        except Exception as exc:  # noqa: BLE001
-            out["seed_error_msg"] = str(getattr(exc, "orig", exc))[:500]
-            out["seed_error_type"] = type(exc).__name__
-    return out, 200
 
 
 # --- CLI commands --------------------------------------------------------

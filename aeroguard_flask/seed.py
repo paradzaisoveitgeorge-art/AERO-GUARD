@@ -54,6 +54,15 @@ def seed_all() -> None:
     skyops = Provider(id="PRV-SKY", name="SkyOps Africa", slug="skyops", country="ZA")
     horizon = Provider(id="PRV-HZ", name="Horizon GDS Partners", slug="horizon", country="KE")
     db.session.add_all([aeroguard, skyops, horizon])
+    # Persist providers before adding any child rows that reference them.
+    # Escalation and Thread carry a provider_id FK but have no ORM
+    # relationship to Provider, so SQLAlchemy's unit-of-work can't know they
+    # must be inserted after providers. On Postgres (Render), FKs are enforced
+    # per-INSERT, so an unordered flush inserts an escalation before its
+    # provider and raises IntegrityError. (SQLite doesn't enforce FKs by
+    # default, which is why this only broke on the hosted deploy.) Flushing
+    # here guarantees the provider rows exist first.
+    db.session.flush()
 
     # --- Users (helpdesk staff + consultant) ------------------------------
     # All seeded accounts use the same demo password: "aeroguard"
