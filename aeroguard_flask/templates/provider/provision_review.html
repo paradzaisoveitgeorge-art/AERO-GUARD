@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Review provisioning &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+{# Re-emit every provisioning value as hidden fields so [Edit] and
+   [Confirm Provisioning] both carry the full form state. #}
+{% macro hidden_fields(d) %}
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <input type="hidden" name="name" value="{{ d.name }}" />
+  <input type="hidden" name="pcc" value="{{ d.pcc }}" />
+  <input type="hidden" name="gds" value="{{ d.gds }}" />
+  <input type="hidden" name="country" value="{{ d.country }}" />
+  <input type="hidden" name="region" value="{{ d.region }}" />
+  <input type="hidden" name="seats" value="{{ d.seats }}" />
+  <input type="hidden" name="policy" value="{{ d.policy }}" />
+  <input type="hidden" name="mode" value="{{ d.mode }}" />
+  {% set mgr = d.members | selectattr("role", "equalto", "MANAGER") | list | first %}
+  {% if mgr %}
+  <input type="hidden" name="manager_name" value="{{ mgr.name }}" />
+  <input type="hidden" name="manager_email" value="{{ mgr.email }}" />
+  {% endif %}
+  {% for c in d.members | selectattr("role", "equalto", "CONSULTANT") | list %}
+  <input type="hidden" name="consultant{{ loop.index }}_name" value="{{ c.name }}" />
+  <input type="hidden" name="consultant{{ loop.index }}_email" value="{{ c.email }}" />
+  {% endfor %}
+{% endmacro %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Review &amp; Confirm Provisioning</h1>
+    <p class="page-header__subtitle">Step 2 of 3 &middot; check everything before {{ data.name }} goes live</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">Agency details</div>
+    <div class="card__subtitle">These values create the tenant record</div>
+  </div>
+  <table class="data-table">
+    <tbody>
+      <tr><td style="width:220px; color:var(--slate-400);">Agency name</td><td><b>{{ data.name }}</b></td></tr>
+      <tr><td style="color:var(--slate-400);">PCC</td><td>{{ data.pcc }}</td></tr>
+      <tr><td style="color:var(--slate-400);">GDS</td><td><span class="gds-chip">{{ data.gds }}</span></td></tr>
+      <tr><td style="color:var(--slate-400);">Country / Region</td><td>{{ data.country }} &middot; {{ data.region }}</td></tr>
+      <tr><td style="color:var(--slate-400);">Subscription tier</td><td>{{ data.policy }}</td></tr>
+      <tr><td style="color:var(--slate-400);">Seats allocated</td><td>{{ data.seats }}</td></tr>
+      <tr><td style="color:var(--slate-400);">Access mode</td><td>{{ data.mode }} {% if data.mode != "TRIAL" %}<span style="color:var(--slate-400);">&middot; agency is marked ACTIVE on confirm</span>{% endif %}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">User whitelist</div>
+    <div class="card__subtitle">{{ data.members | length }} named seat(s) &middot; each receives a welcome email from the hub after confirmation</div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+    </thead>
+    <tbody>
+      {% for m in data.members %}
+      <tr>
+        <td><b>{{ m.name }}</b></td>
+        <td>{{ m.email }}</td>
+        <td>{% if m.role == "MANAGER" %}<span class="tier-badge PLATINUM">MANAGER</span>{% else %}<span class="tier-badge STANDARD">CONSULTANT</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div style="display:flex; gap:12px; justify-content:flex-end;">
+  <form method="post" action="{{ url_for('provision_edit') }}">
+    {{ hidden_fields(data) }}
+    <button type="submit" class="btn btn-ghost">&larr; Edit</button>
+  </form>
+  <form method="post" action="{{ url_for('provision_agency') }}">
+    {{ hidden_fields(data) }}
+    <button type="submit" class="btn btn-primary">Confirm Provisioning</button>
+  </form>
+</div>
+
+{% endblock %}

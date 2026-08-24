@@ -52,6 +52,7 @@ from flask import jsonify
 
 from models import (
     Agency,
+    AgencyMember,
     Alert,
     AuditLog,
     Escalation,
@@ -188,7 +189,9 @@ def _require_login_for_provider_console():
 
 # --- Static reference data (still in code — never changes per-tenant) -------
 COUNTRIES = ["ZW", "ZA", "KE", "UG", "TZ", "NG", "GH", "ET", "RW", "BW"]
-POLICY_TEMPLATES = ["Standard Compliance", "Full Enterprise", "Trial / Lite", "Custom"]
+# Subscription tiers per the client spec (Platinum / Gold / Standard).
+POLICY_TEMPLATES = ["Platinum", "Gold", "Standard", "Custom"]
+REGIONS = ["Southern Africa", "East Africa", "West Africa", "Central Africa", "North Africa", "Indian Ocean"]
 CURRENCIES = ["USD", "EUR", "ZAR", "KES", "UGX", "NGN", "GHS", "ZWL", "RWF"]
 
 NAV_GROUPS = [
@@ -359,17 +362,21 @@ def render_provider(template_name, active_nav, **context):
 
 def policy_tier(policy_level: str) -> str:
     """Map the free-text policy_level onto the spec's service-tier naming
-    (Platinum / Gold / Standard). Keyword-based so it copes with both the
-    seed vocabulary (STANDARD / ENTERPRISE / BASIC) and the provisioning-form
-    templates (Full Enterprise / Standard Compliance / Trial / Custom)."""
+    (Platinum / Gold / Standard). Keyword-based so it copes with the new
+    subscription-tier vocabulary (Platinum / Gold / Standard) as well as
+    legacy values still in older databases (STANDARD / ENTERPRISE / BASIC,
+    Full Enterprise / Standard Compliance / Trial / Custom)."""
     p = (policy_level or "").upper()
     if "ENTERPRISE" in p or "PLATINUM" in p:
         return "PLATINUM"
+    if "GOLD" in p:
+        return "GOLD"
     if "BASIC" in p or "TRIAL" in p or "LITE" in p:
         return "STANDARD"
     if "CUSTOM" in p:
         return "CUSTOM"
-    # STANDARD / Standard Compliance / anything else → the mid Gold tier
+    if "STANDARD" in p:
+        return "STANDARD"
     return "GOLD"
 
 
@@ -381,7 +388,7 @@ def agency_to_dict(a: Agency) -> dict:
         "month_adms": a.month_adms,
         "last_active": humanize(a.updated_at) if a.status != "PROVISIONING" else "—",
         "policy_level": a.policy_level, "policy_tier": policy_tier(a.policy_level),
-        "admin_email": a.admin_email,
+        "admin_email": a.admin_email, "region": a.region or "",
     }
 
 
@@ -856,8 +863,9 @@ SORT_KEYS = {
 }
 
 
-@app.route("/provider/agencies")
-def provider_agencies():
+def _render_agencies_page(prefill: dict | None = None):
+    """Render the agencies list. ``prefill`` re-opens the provisioning modal
+    with previously entered values (used by the Review screen's [Edit])."""
     filter_gds = request.args.get("gds", "ALL")
     filter_country = request.args.get("country", "ALL")
     filter_policy = request.args.get("policy", "ALL")
@@ -869,7 +877,7 @@ def provider_agencies():
         a for a in rows
         if (filter_gds == "ALL" or a["gds"] == filter_gds)
         and (filter_country == "ALL" or a["country"] == filter_country)
-        and (filter_policy == "ALL" or a["policy_level"] == filter_policy)
+        and (filter_policy == "ALL" or a["policy_tier"] == filter_policy)
     ]
     rows.sort(key=SORT_KEYS.get(sort_by, SORT_KEYS["name"]), reverse=(sort_dir == "desc"))
 
@@ -881,35 +889,230 @@ def provider_agencies():
     return render_provider(
         "provider/agencies.html", "AGENCIES",
         agencies=rows, countries=COUNTRIES, policy_templates=POLICY_TEMPLATES,
+        regions=REGIONS, prefill=prefill,
         filter_gds=filter_gds, filter_country=filter_country, filter_policy=filter_policy,
         sort_by=sort_by, sort_dir=sort_dir, sort_url=sort_url,
         querystring=request.query_string.decode(),
     )
 
 
+@app.route("/provider/agencies")
+def provider_agencies():
+    return _render_agencies_page()
+
+
+# --- Provisioning workflow (client updates Batch 1) -----------------------
+#
+# Data entry (modal) → Review & Confirm screen → agency saved ACTIVE →
+# Email Notification Hub with pre-generated welcome emails for the
+# manager + up to 3 consultants.
+
+MAX_CONSULTANT_SEATS = 3
+
+
+def _provision_form(form) -> dict:
+    """Normalize the provisioning form fields into one dict that the
+    review / edit / confirm steps all share."""
+    members = []
+    mgr_name = (form.get("manager_name") or "").strip()
+    mgr_email = (form.get("manager_email") or "").strip().lower()
+    if mgr_name or mgr_email:
+        members.append({"name": mgr_name, "email": mgr_email, "role": "MANAGER"})
+    for i in range(1, MAX_CONSULTANT_SEATS + 1):
+        n = (form.get(f"consultant{i}_name") or "").strip()
+        e = (form.get(f"consultant{i}_email") or "").strip().lower()
+        if n or e:
+            members.append({"name": n, "email": e, "role": "CONSULTANT"})
+    try:
+        seats = int(form.get("seats") or 10)
+    except ValueError:
+        seats = 0
+    return {
+        "name": (form.get("name") or "").strip(),
+        "pcc": (form.get("pcc") or "").strip().upper(),
+        "gds": form.get("gds") or "1G",
+        "country": form.get("country") or "ZW",
+        "region": form.get("region") or REGIONS[0],
+        "seats": seats,
+        "policy": form.get("policy") or "Gold",
+        "mode": form.get("mode") or "FULL",
+        "members": members,
+    }
+
+
+def _provision_errors(data: dict) -> list[str]:
+    errs = []
+    if not data["name"]:
+        errs.append("Agency name is required.")
+    if not data["pcc"]:
+        errs.append("PCC is required.")
+    if data["seats"] < 1:
+        errs.append("Seat count must be at least 1.")
+    managers = [m for m in data["members"] if m["role"] == "MANAGER"]
+    consultants = [m for m in data["members"] if m["role"] == "CONSULTANT"]
+    if not managers:
+        errs.append("The agency manager's name and email are required.")
+    if len(consultants) > MAX_CONSULTANT_SEATS:
+        errs.append(f"At most {MAX_CONSULTANT_SEATS} consultant sub-users are allowed.")
+    for m in data["members"]:
+        if not m["name"] or not m["email"] or "@" not in m["email"]:
+            errs.append(f"Each {m['role'].lower()} entry needs both a name and a valid email.")
+            break
+    return errs
+
+
+@app.route("/provider/agencies/provision/review", methods=["POST"])
+@require("agency:provision")
+def provision_review():
+    """Step 2 of the workflow: show everything just entered for sign-off."""
+    data = _provision_form(request.form)
+    errors = _provision_errors(data)
+    if errors:
+        for e in errors:
+            flash(e, "error")
+        return _render_agencies_page(prefill=data)
+    return render_provider("provider/provision_review.html", "AGENCIES", data=data)
+
+
+@app.route("/provider/agencies/provision/edit", methods=["POST"])
+@require("agency:provision")
+def provision_edit():
+    """[Edit] on the review screen — reopen the modal with values intact."""
+    return _render_agencies_page(prefill=_provision_form(request.form))
+
+
 @app.route("/provider/agencies/provision", methods=["POST"])
 @require("agency:provision")
 def provision_agency():
+    """[Confirm Provisioning] — persist the agency ACTIVE + whitelist, then
+    hand off to the Email Notification Hub."""
+    data = _provision_form(request.form)
+    errors = _provision_errors(data)
+    if errors:
+        for e in errors:
+            flash(e, "error")
+        return _render_agencies_page(prefill=data)
+
     new_id = f"AG-{random.randint(1000, 9999)}"
-    name = request.form.get("name") or "Unnamed"
+    manager = next(m for m in data["members"] if m["role"] == "MANAGER")
+    status = "TRIAL" if data["mode"] == "TRIAL" else "ACTIVE"
     db.session.add(Agency(
         id=new_id,
         provider_id=current_provider_id(),
-        name=name,
-        pcc=(request.form.get("pcc") or "XXXX").upper(),
-        gds=request.form.get("gds") or "1G",
-        country=request.form.get("country") or "ZW",
-        seats=int(request.form.get("seats") or 10),
+        name=data["name"],
+        pcc=data["pcc"] or "XXXX",
+        gds=data["gds"],
+        country=data["country"],
+        region=data["region"],
+        seats=data["seats"],
         used_seats=0,
-        status="TRIAL" if request.form.get("mode") == "TRIAL" else "PROVISIONING",
+        status=status,
         month_adms=0,
         last_active="—",
-        policy_level=request.form.get("policy") or "Standard Compliance",
-        admin_email=request.form.get("admin_email") or "",
+        policy_level=data["policy"],
+        admin_email=manager["email"],
     ))
-    write_audit("AGENCY_PROVISION", "agency", new_id, note=name)
+    db.session.flush()  # agency row must exist before members reference it
+
+    temp_creds: dict[str, str] = {}
+    for m in data["members"]:
+        row = AgencyMember(agency_id=new_id, name=m["name"], email=m["email"], member_role=m["role"])
+        db.session.add(row)
+        db.session.flush()
+        # One-time temporary password: shown on the hub for this session
+        # only, never persisted. Real portal logins arrive with the
+        # Agency Portal tier.
+        temp_creds[str(row.id)] = secrets.token_urlsafe(8)
+
+    write_audit("AGENCY_PROVISION", "agency", new_id,
+                note=f"{data['name']} · {status} · {len(data['members'])} member(s)")
     db.session.commit()
-    return redirect(url_for("provider_agencies"))
+    session[f"welcome_creds_{new_id}"] = temp_creds
+    flash(f"{data['name']} provisioned and marked {status}.", "success")
+    return redirect(url_for("agency_welcome_hub", agency_id=new_id))
+
+
+def _welcome_email_for(member: AgencyMember, agency: Agency, temp_password: str | None):
+    """Build the (subject, body) pair for one member's welcome email."""
+    login_url = url_for("login", _external=True)
+    tier = policy_tier(agency.policy_level).title()
+    lines = [
+        f"Hi {member.name},",
+        "",
+        f"{agency.name} has been provisioned on AERO-GUARD "
+        f"({tier} tier · {agency.seats} seats · GDS {agency.gds}).",
+        "",
+        f"Sign in:            {login_url}",
+        f"Your login email:   {member.email}",
+        f"Temporary password: {temp_password or '(issued separately by your administrator)'}",
+        "",
+        "First steps:",
+        "  1. Sign in and change your password.",
+        "  2. Enrol multi-factor authentication from your account menu (recommended).",
+    ]
+    if member.member_role == "CONSULTANT":
+        lines.append("  3. Open the consultant terminal and press the AERO-GUARD Smart Button, or type #AG.")
+    lines += [
+        "",
+        "Need help? Use the live chat in your portal or reply to this email.",
+        "",
+        "— AERO-GUARD Provisioning",
+    ]
+    subject = f"Welcome to AERO-GUARD — {agency.name} is now active"
+    return subject, "\n".join(lines)
+
+
+@app.route("/provider/agencies/<agency_id>/welcome-hub")
+@require("agency:provision")
+def agency_welcome_hub(agency_id):
+    """Step 4: the Email Notification Hub for one agency's whitelist."""
+    a = get_owned_or_404(Agency, agency_id)
+    creds = session.get(f"welcome_creds_{agency_id}", {})
+    members = (AgencyMember.query.filter_by(agency_id=agency_id)
+               .order_by(AgencyMember.member_role.desc(), AgencyMember.id).all())
+    cards = []
+    for m in members:
+        subject, body = _welcome_email_for(m, a, creds.get(str(m.id)))
+        cards.append({
+            "id": m.id, "name": m.name, "email": m.email, "role": m.member_role,
+            "subject": subject, "body": body,
+            "sent": humanize(m.welcome_sent_at) if m.welcome_sent_at else None,
+        })
+    return render_provider(
+        "provider/welcome_hub.html", "AGENCIES",
+        agency=agency_to_dict(a), cards=cards,
+        mail_configured=mail_is_configured(), has_creds=bool(creds),
+    )
+
+
+@app.route("/provider/agencies/<agency_id>/welcome-hub/send", methods=["POST"])
+@require("agency:provision")
+def agency_welcome_send(agency_id):
+    a = get_owned_or_404(Agency, agency_id)
+    creds = session.get(f"welcome_creds_{agency_id}", {})
+    member_id = request.form.get("member_id") or "ALL"
+    q = AgencyMember.query.filter_by(agency_id=agency_id)
+    if member_id == "ALL":
+        members = q.all()
+    else:
+        members = [q.filter_by(id=int(member_id)).first_or_404()]
+
+    delivered = 0
+    for m in members:
+        subject, body = _welcome_email_for(m, a, creds.get(str(m.id)))
+        ok = send_email(to=m.email, subject=subject, text=body)
+        m.welcome_sent_at = datetime.utcnow()
+        delivered += 1 if ok else 0
+        write_audit("AGENCY_WELCOME_SENT", "agency", a.id,
+                    note=f"{m.email} ({'delivered' if ok else 'logged — SMTP unconfigured'})")
+    db.session.commit()
+
+    if mail_is_configured():
+        flash(f"Welcome email sent to {delivered} recipient(s).", "success")
+    else:
+        flash(f"SMTP not configured — {len(members)} welcome email(s) logged. "
+              "The preview below is exactly what will be sent once email is set up.", "info")
+    return redirect(url_for("agency_welcome_hub", agency_id=agency_id))
 
 
 @app.route("/provider/agencies/<agency_id>/toggle-suspend", methods=["POST"])

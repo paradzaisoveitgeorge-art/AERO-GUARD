@@ -33,9 +33,9 @@
     </select>
   </label>
   <label class="filter-select">
-    <span>Policy:</span>
+    <span>Tier:</span>
     <select name="policy" onchange="document.getElementById('filter-form').submit()">
-      {% for o in ["ALL", "BASIC", "STANDARD", "ENTERPRISE"] %}
+      {% for o in ["ALL", "PLATINUM", "GOLD", "STANDARD", "CUSTOM"] %}
       <option value="{{ o }}" {{ "selected" if o == filter_policy else "" }}>{{ o }}</option>
       {% endfor %}
     </select>
@@ -86,7 +86,7 @@
             {{ a.name }}
             <span class="tier-badge {{ a.policy_tier }}" title="{{ a.policy_level }}">{{ a.policy_tier }}</span>
           </div>
-          <div class="cell-id">{{ a.id }} &middot; {{ a.policy_level }}</div>
+          <div class="cell-id">{{ a.id }} &middot; {{ a.policy_level }}{% if a.region %} &middot; {{ a.region }}{% endif %}</div>
         </td>
         <td style="font-family: var(--font-mono);">{{ a.pcc }}</td>
         <td><span class="gds-chip">{{ a.gds }}</span></td>
@@ -100,7 +100,9 @@
         <td style="font-size:12px; color: var(--slate-400);">{{ a.last_active }}</td>
         <td class="row-actions">
           <button type="button" class="icon-btn sky" title="Audit" aria-label="Open audit for {{ a.name }}" onclick="alert('Opening audit for {{ a.name }}')">&#128202;</button>
-          <button type="button" class="icon-btn indigo" title="Resend welcome" aria-label="Resend welcome email to {{ a.admin_email }}" onclick="alert('Welcome email resent to {{ a.admin_email }}')">&#9993;</button>
+          {% if can('agency:provision') %}
+          <a class="icon-btn indigo" title="Email hub — welcome emails" aria-label="Open welcome email hub for {{ a.name }}" href="{{ url_for('agency_welcome_hub', agency_id=a.id) }}">&#9993;</a>
+          {% endif %}
           {% if can('agency:suspend') %}
           <form method="post" action="{{ url_for('toggle_suspend_agency', agency_id=a.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -138,21 +140,23 @@
     <button class="modal-header__close" onclick="closeProvisionModal()">&times;</button>
   </div>
   <div class="modal-body">
-    <form id="provision-form" class="form-stack" method="post" action="{{ url_for('provision_agency') }}">
+    {% set mgr = (prefill.members | selectattr("role", "equalto", "MANAGER") | list | first) if prefill else None %}
+    {% set cons = (prefill.members | selectattr("role", "equalto", "CONSULTANT") | list) if prefill else [] %}
+    <form id="provision-form" class="form-stack" method="post" action="{{ url_for('provision_review') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="field">
         <label>Agency name *</label>
-        <input name="name" required />
+        <input name="name" required value="{{ prefill.name if prefill else '' }}" />
       </div>
       <div class="form-row-2">
         <div class="field">
           <label>PCC *</label>
-          <input name="pcc" required />
+          <input name="pcc" required value="{{ prefill.pcc if prefill else '' }}" />
         </div>
         <div class="field">
           <label>Country *</label>
           <select name="country">
-            {% for c in countries %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+            {% for c in countries %}<option value="{{ c }}" {{ "selected" if prefill and prefill.country == c else "" }}>{{ c }}</option>{% endfor %}
           </select>
         </div>
       </div>
@@ -160,43 +164,75 @@
         <div class="field">
           <label>GDS *</label>
           <select name="gds" id="gds-select" onchange="updateModules()">
-            <option value="1G">1G</option>
-            <option value="1A">1A</option>
-            <option value="1S">1S</option>
+            {% for g in ["1G", "1A", "1S"] %}<option value="{{ g }}" {{ "selected" if prefill and prefill.gds == g else "" }}>{{ g }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Region *</label>
+          <select name="region">
+            {% for r in regions %}<option value="{{ r }}" {{ "selected" if prefill and prefill.region == r else "" }}>{{ r }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Subscription tier *</label>
+          <select name="policy">
+            {% for p in policy_templates %}<option value="{{ p }}" {{ "selected" if prefill and prefill.policy == p else "" }}>{{ p }}</option>{% endfor %}
           </select>
         </div>
         <div class="field">
           <label>Seat count *</label>
-          <input name="seats" type="number" required />
+          <input name="seats" type="number" min="1" required value="{{ prefill.seats if prefill else 10 }}" />
         </div>
       </div>
       <div class="field">
-        <label>Agency administrator email *</label>
-        <input name="admin_email" type="email" required />
+        <label>Access mode</label>
+        <select name="mode">
+          <option value="FULL" {{ "selected" if not prefill or prefill.mode == "FULL" else "" }}>FULL</option>
+          <option value="TRIAL" {{ "selected" if prefill and prefill.mode == "TRIAL" else "" }}>TRIAL</option>
+        </select>
       </div>
-      <p class="field-hint">Admin receives credentials and MFA setup link automatically.</p>
-      <div class="form-row-2">
-        <div class="field">
-          <label>Policy template</label>
-          <select name="policy">
-            {% for p in policy_templates %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>Access mode</label>
-          <select name="mode">
-            <option value="TRIAL">TRIAL</option>
-            <option value="FULL">FULL</option>
-          </select>
+
+      <div class="modules-box">
+        <div class="modules-box__title">Agency manager (portal admin) *</div>
+        <div class="form-row-2">
+          <div class="field">
+            <label>Full name</label>
+            <input name="manager_name" required value="{{ mgr.name if mgr else '' }}" />
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input name="manager_email" type="email" required value="{{ mgr.email if mgr else '' }}" />
+          </div>
         </div>
       </div>
+
+      <div class="modules-box">
+        <div class="modules-box__title">Consultant sub-users <span style="font-weight:400;">(optional &middot; max 3)</span></div>
+        {% for i in [1, 2, 3] %}
+        {% set c = cons[i - 1] if cons | length >= i else None %}
+        <div class="form-row-2">
+          <div class="field">
+            <label>Consultant {{ i }} name</label>
+            <input name="consultant{{ i }}_name" value="{{ c.name if c else '' }}" />
+          </div>
+          <div class="field">
+            <label>Consultant {{ i }} email</label>
+            <input name="consultant{{ i }}_email" type="email" value="{{ c.email if c else '' }}" />
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="field-hint">Each person listed receives login instructions and a temporary password from the Email Hub after you confirm.</p>
+
       <div class="modules-box">
         <div class="modules-box__title">Policy modules (<span id="gds-label">1G</span>)</div>
         <div id="modules-list"></div>
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-ghost" onclick="closeProvisionModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary">Confirm &amp; Provision</button>
+        <button type="submit" class="btn btn-primary">Review provisioning &rarr;</button>
       </div>
     </form>
   </div>
@@ -216,6 +252,10 @@ function updateModules() {
   ).join("");
 }
 updateModules();
+{% if prefill %}
+// Returning from the Review screen's [Edit] — reopen with values intact.
+document.getElementById("provision-modal").style.display = "block";
+{% endif %}
 
 function closeProvisionModal() {
   document.getElementById("provision-modal").style.display = "none";

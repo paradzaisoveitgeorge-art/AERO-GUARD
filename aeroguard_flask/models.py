@@ -143,11 +143,39 @@ class Agency(db.Model):
     last_active = db.Column(db.String(40), default="—")
     policy_level = db.Column(db.String(40), default="STANDARD")
     admin_email = db.Column(db.String(160), default="")
+    region = db.Column(db.String(40), nullable=True)  # e.g. "Southern Africa"
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = db.Column(db.DateTime, nullable=True)  # soft delete
 
     provider = db.relationship("Provider", back_populates="agencies")
+    members = db.relationship(
+        "AgencyMember",
+        back_populates="agency",
+        cascade="all, delete-orphan",
+        order_by="AgencyMember.id",
+    )
+
+
+class AgencyMember(db.Model):
+    """A named seat on an agency's whitelist (provisioning workflow).
+
+    The manager plus up to three consultants entered during provisioning.
+    These are contact/whitelist records — portal logins for them arrive
+    with the Agency Portal tier; until then they receive the welcome
+    email from the Email Notification Hub.
+    """
+    __tablename__ = "agency_members"
+
+    id = db.Column(db.Integer, primary_key=True)
+    agency_id = db.Column(db.String(20), db.ForeignKey("agencies.id"), nullable=False, index=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(160), nullable=False)
+    member_role = db.Column(db.String(20), nullable=False)  # MANAGER | CONSULTANT
+    welcome_sent_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    agency = db.relationship("Agency", back_populates="members")
 
 
 class Escalation(db.Model):

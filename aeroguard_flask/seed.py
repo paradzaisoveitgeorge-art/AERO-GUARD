@@ -14,6 +14,7 @@ from models import (
     Provider,
     User,
     Agency,
+    AgencyMember,
     Escalation,
     Thread,
     Message,
@@ -31,6 +32,7 @@ def _wipe() -> None:
     Thread.query.delete()
     Escalation.query.delete()
     AuditLog.query.delete()
+    AgencyMember.query.delete()
     Agency.query.delete()
     User.query.delete()
     Provider.query.delete()
@@ -92,24 +94,38 @@ def seed_all() -> None:
     # --- Agencies ---------------------------------------------------------
     # updated_at drives the humanized "last_active" display; we tune each
     # row so the demo looks like an in-flight day of operations.
+    # policy vocabulary = the subscription tiers from the client spec
+    # (Platinum / Gold / Standard).
     agency_specs = [
-        ("AG-1001", "PRV-AG",  "Skylink Travel",    "7XQ9", "1G", "ZW", 25, 22, "ACTIVE",       2,  ago(minutes=3),  "STANDARD",   "admin@skylink.zw"),
-        ("AG-1002", "PRV-SKY", "Voyage Africa",     "K3P1", "1G", "ZA", 60, 55, "ACTIVE",       7,  ago(minutes=12), "ENTERPRISE", "ops@voyage.co.za"),
-        ("AG-1003", "PRV-HZ",  "BlueSky Holidays",  "QM44", "1A", "KE", 15, 9,  "TRIAL",        0,  ago(hours=1),    "BASIC",      "info@bluesky.ke"),
-        ("AG-1004", "PRV-AG",  "Continental Tours", "B2H7", "1G", "ZW", 12, 11, "SUSPENDED",    14, ago(days=4),     "STANDARD",   "tt@continental.zw"),
-        ("AG-1005", "PRV-SKY", "Equator Travel",    "EQ12", "1A", "UG", 8,  0,  "PROVISIONING", 0,  None,            "BASIC",      "admin@equator.ug"),
-        ("AG-1006", "PRV-HZ",  "Mara Routes",       "MR55", "1S", "KE", 20, 4,  "ARCHIVED",     0,  ago(days=90),    "BASIC",      "hello@mara.ke"),
+        ("AG-1001", "PRV-AG",  "Skylink Travel",    "7XQ9", "1G", "ZW", 25, 22, "ACTIVE",       2,  ago(minutes=3),  "Gold",     "admin@skylink.zw",  "Southern Africa"),
+        ("AG-1002", "PRV-SKY", "Voyage Africa",     "K3P1", "1G", "ZA", 60, 55, "ACTIVE",       7,  ago(minutes=12), "Platinum", "ops@voyage.co.za",  "Southern Africa"),
+        ("AG-1003", "PRV-HZ",  "BlueSky Holidays",  "QM44", "1A", "KE", 15, 9,  "TRIAL",        0,  ago(hours=1),    "Standard", "info@bluesky.ke",   "East Africa"),
+        ("AG-1004", "PRV-AG",  "Continental Tours", "B2H7", "1G", "ZW", 12, 11, "SUSPENDED",    14, ago(days=4),     "Gold",     "tt@continental.zw", "Southern Africa"),
+        ("AG-1005", "PRV-SKY", "Equator Travel",    "EQ12", "1A", "UG", 8,  0,  "PROVISIONING", 0,  None,            "Standard", "admin@equator.ug",  "East Africa"),
+        ("AG-1006", "PRV-HZ",  "Mara Routes",       "MR55", "1S", "KE", 20, 4,  "ARCHIVED",     0,  ago(days=90),    "Standard", "hello@mara.ke",     "East Africa"),
     ]
     agencies = []
-    for aid, pid, name, pcc, gds, country, seats, used, status, adms, updated, policy, email in agency_specs:
+    for aid, pid, name, pcc, gds, country, seats, used, status, adms, updated, policy, email, region in agency_specs:
         a = Agency(id=aid, provider_id=pid, name=name, pcc=pcc, gds=gds, country=country,
                    seats=seats, used_seats=used, status=status, month_adms=adms,
-                   policy_level=policy, admin_email=email, last_active="—")
+                   policy_level=policy, admin_email=email, last_active="—", region=region)
         if updated is not None:
             a.updated_at = updated
             a.created_at = updated
         agencies.append(a)
     db.session.add_all(agencies)
+    db.session.flush()  # members below reference agency ids
+
+    # --- Agency whitelist members (provisioning workflow) ------------------
+    # Skylink Travel demonstrates the Email Notification Hub out of the box.
+    members = [
+        AgencyMember(agency_id="AG-1001", name="Rumbi Chikafu",  email="rumbi@skylink.zw",  member_role="MANAGER"),
+        AgencyMember(agency_id="AG-1001", name="Tendai Moyo",    email="tendai@skylink.zw", member_role="CONSULTANT"),
+        AgencyMember(agency_id="AG-1001", name="Chipo Ndlovu",   email="chipo@skylink.zw",  member_role="CONSULTANT"),
+        AgencyMember(agency_id="AG-1002", name="Lerato Dube",    email="lerato@voyage.co.za", member_role="MANAGER"),
+    ]
+    members[0].welcome_sent_at = ago(days=2)  # manager already welcomed
+    db.session.add_all(members)
 
     # --- Escalations ------------------------------------------------------
     esc_specs = [

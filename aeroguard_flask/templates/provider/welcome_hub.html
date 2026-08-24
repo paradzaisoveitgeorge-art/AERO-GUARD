@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Email hub &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Email Notification Hub</h1>
+    <p class="page-header__subtitle">
+      {{ agency.name }} &middot; {{ agency.id }} &middot;
+      <span class="tier-badge {{ agency.policy_tier }}">{{ agency.policy_tier }}</span>
+      &middot; status <b>{{ agency.status }}</b>
+    </p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('provider_agencies') }}">&larr; Back to agencies</a>
+</div>
+
+{% if not mail_configured %}
+<div class="card" style="margin-bottom:16px; border-left:3px solid var(--amber-500, #f59e0b);">
+  <div style="padding:12px 16px; font-size:13px; color:var(--slate-300);">
+    <b>SMTP is not configured</b> — pressing Send logs the email instead of delivering it.
+    The previews below are exactly what will go out once <code>MAIL_SMTP_HOST</code> is set
+    (Render dashboard &rarr; aero-guard-web &rarr; Environment).
+  </div>
+</div>
+{% endif %}
+
+{% if has_creds %}
+<div class="card" style="margin-bottom:16px; border-left:3px solid var(--emerald-500, #10b981);">
+  <div style="padding:12px 16px; font-size:13px; color:var(--slate-300);">
+    <b>Temporary passwords are shown once</b> — they are visible in these previews for this
+    session only and are never stored. Send the emails now, or note the passwords down.
+  </div>
+</div>
+{% endif %}
+
+{% if cards %}
+<form method="post" action="{{ url_for('agency_welcome_send', agency_id=agency.id) }}" style="margin-bottom:16px; text-align:right;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <input type="hidden" name="member_id" value="ALL" />
+  <button type="submit" class="btn btn-primary">&#9993; Send all ({{ cards | length }})</button>
+</form>
+
+{% for c in cards %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header" style="display:flex; align-items:center; justify-content:space-between;">
+    <div>
+      <div class="card__title">{{ c.name }}
+        {% if c.role == "MANAGER" %}<span class="tier-badge PLATINUM">MANAGER</span>{% else %}<span class="tier-badge STANDARD">CONSULTANT</span>{% endif %}
+      </div>
+      <div class="card__subtitle">To: {{ c.email }} &middot; Subject: {{ c.subject }}</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      {% if c.sent %}<span style="font-size:12px; color:var(--emerald-400, #34d399);">&check; Sent {{ c.sent }}</span>{% endif %}
+      <form method="post" action="{{ url_for('agency_welcome_send', agency_id=agency.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="member_id" value="{{ c.id }}" />
+        <button type="submit" class="btn btn-primary">{{ "Resend" if c.sent else "Send" }}</button>
+      </form>
+    </div>
+  </div>
+  <pre style="margin:0; padding:16px; font-size:12.5px; line-height:1.55; white-space:pre-wrap; color:var(--slate-300); background:rgba(0,0,0,0.18); border-top:1px solid var(--slate-800, #1e293b); border-radius:0 0 10px 10px;">{{ c.body }}</pre>
+</div>
+{% endfor %}
+{% else %}
+<div class="card">
+  <div style="padding:24px; text-align:center; color:var(--slate-400);">
+    No whitelist members were recorded for this agency — it predates the provisioning
+    workflow update. Newly provisioned agencies list their manager and consultants here.
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
