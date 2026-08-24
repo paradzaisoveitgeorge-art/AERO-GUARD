@@ -1161,3 +1161,60 @@ td.empty-state-cell { padding: 32px 16px !important; text-align: center; color: 
   .card { padding: 14px; }
 }
 
+
+/* ---------- Agency Portal (client updates Batch 3) ---------- */
+
+.portal-topnav__right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.portal-topnav__user { font-size: 12px; color: var(--slate-400); white-space: nowrap; }
+
+/* Pulse KPI row — stacks on mobile per the spec's responsive requirement */
+.portal-pulse { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+@media (max-width: 900px) { .portal-pulse { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .portal-pulse { grid-template-columns: 1fr; } }
+
+/* Traffic-light accents (≥90 green · 75–89 amber · <75 red) */
+.stat-card.pulse-green  { border-left: 3px solid #10b981; }
+.stat-card.pulse-green  .stat-card__value { color: #34d399; }
+.stat-card.pulse-amber  { border-left: 3px solid #f59e0b; }
+.stat-card.pulse-amber  .stat-card__value { color: #fbbf24; }
+.stat-card.pulse-red    { border-left: 3px solid #ef4444; }
+.stat-card.pulse-red    .stat-card__value { color: #f87171; }
+
+/* 70/30 operational split, collapsing on small screens */
+.portal-grid { display: grid; grid-template-columns: 7fr 3fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 900px) { .portal-grid { grid-template-columns: 1fr; } }
+
+.portal-chart { padding: 12px 16px 16px; }
+.portal-chart svg { width: 100%; height: 150px; display: block; }
+.portal-chart__legend { display: flex; gap: 18px; margin-top: 10px; font-size: 12px; color: var(--slate-400); flex-wrap: wrap; }
+.portal-chart__legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+.portal-chart__legend .dot.indigo { background: #6366f1; }
+.portal-chart__legend .dot.rose { background: #f43f5e; }
+.portal-chart__legend .dim { margin-left: auto; }
+
+.portal-visa { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.portal-visa select { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--slate-700, #334155); border-radius: 8px; color: inherit; padding: 8px 10px; font-size: 13px; }
+.portal-visa__result { border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.5; }
+.portal-visa__result.free     { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.4); }
+.portal-visa__result.required { background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.4); }
+.portal-visa__result.voa,
+.portal-visa__result.eta      { background: rgba(245,158,11,.12); border: 1px solid rgba(245,158,11,.4); }
+.portal-visa__result.check    { background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.4); }
+
+.portal-feed { list-style: none; margin: 0; padding: 6px 0; }
+.portal-feed li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 16px; border-top: 1px solid rgba(148,163,184,.08); }
+.portal-feed li:first-child { border-top: none; }
+.portal-feed__tag { font-size: 10px; font-weight: 700; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; margin-top: 2px; }
+.portal-feed__tag.policy  { background: rgba(99,102,241,.15);  color: #a5b4fc; }
+.portal-feed__tag.fares   { background: rgba(16,185,129,.15);  color: #6ee7b7; }
+.portal-feed__tag.baggage { background: rgba(245,158,11,.15);  color: #fcd34d; }
+.portal-feed__tag.gds     { background: rgba(56,189,248,.15);  color: #7dd3fc; }
+.portal-feed__tag.promo   { background: rgba(244,114,182,.15); color: #f9a8d4; }
+.portal-feed__title { font-size: 13px; }
+.portal-feed__meta { font-size: 11px; color: var(--slate-400); margin-top: 2px; }
+
+.portal-perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 700px) { .portal-perm-grid { grid-template-columns: 1fr; } }
+.portal-perm-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slate-300, #cbd5e1); }
+
+.portal-legal { margin-top: 28px; padding: 14px 16px; border-radius: 10px; border: 1px dashed rgba(148,163,184,.25); font-size: 11.5px; line-height: 1.6; color: var(--slate-400); }

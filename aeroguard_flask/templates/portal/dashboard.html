@@ -1,0 +1,112 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Dashboard &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Control Tower</h1>
+    <p class="page-header__subtitle">{{ agency.name }} &middot; PCC {{ agency.pcc }} &middot; GDS {{ agency.gds }} &middot; {{ agency.region or agency.country }}</p>
+  </div>
+</div>
+
+<!-- Pulse KPI cards — traffic-light coded per the spec (≥90 green · 75–89 amber · <75 red) -->
+<div class="portal-pulse">
+  <div class="stat-card pulse-{{ compliance_light }}">
+    <div class="stat-card__label">Compliance Rate</div>
+    <div class="stat-card__value">{{ compliance_pct }}%</div>
+    <div class="stat-card__sub">policy adherence &middot; last 30 days</div>
+  </div>
+  <a class="stat-card tone-indigo" href="{{ url_for('portal_reports') }}">
+    <div class="stat-card__label">ADM Avoided</div>
+    <div class="stat-card__value">${{ "{:,}".format(adm_avoided) }}</div>
+    <div class="stat-card__sub">pre-ticketing validation savings</div>
+  </a>
+  <div class="stat-card {{ 'tone-amber' if open_escalations else 'tone-emerald' }}">
+    <div class="stat-card__label">Active Queue</div>
+    <div class="stat-card__value">{{ open_escalations }}</div>
+    <div class="stat-card__sub">escalations awaiting helpdesk</div>
+  </div>
+  <div class="stat-card tone-sky">
+    <div class="stat-card__label">Avg. Ticketing Time</div>
+    <div class="stat-card__value">{{ avg_ticketing }}</div>
+    <div class="stat-card__sub">PNR creation &rarr; ticket issued</div>
+  </div>
+</div>
+
+<div class="portal-grid">
+  <div class="card portal-grid__main">
+    <div class="card__header">
+      <div class="card__title">Policy performance &middot; last 30 days</div>
+      <div class="card__subtitle">{{ total_tickets }} tickets issued &middot; compliant vs issued-against-warning</div>
+    </div>
+    <div class="portal-chart">
+      <svg viewBox="0 0 640 150" preserveAspectRatio="none" role="img" aria-label="30 day compliance area chart">
+        <path d="{{ chart_ok_path }}" fill="rgba(79,70,229,0.25)" stroke="#6366f1" stroke-width="1.5" />
+        <path d="{{ chart_ovr_path }}" fill="rgba(244,63,94,0.35)" stroke="#f43f5e" stroke-width="1.5" />
+      </svg>
+      <div class="portal-chart__legend">
+        <span><i class="dot indigo"></i> All issuance</span>
+        <span><i class="dot rose"></i> Issued against warning (out-of-policy)</span>
+        <span class="dim">{{ series[0].label }} &rarr; {{ series[-1].label }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card portal-grid__side">
+    <div class="card__header">
+      <div class="card__title">Quick visa check</div>
+      <div class="card__subtitle">duty of care &middot; embedded lookup</div>
+    </div>
+    <div class="portal-visa">
+      <select id="visa-nationality">
+        <option value="ZWE">Zimbabwe (ZWE)</option>
+        <option value="ZAF">South Africa (ZAF)</option>
+        <option value="GBR">United Kingdom (GBR)</option>
+        <option value="NGA">Nigeria (NGA)</option>
+        <option value="IND">India (IND)</option>
+      </select>
+      <select id="visa-destination">
+        <option value="GBR">United Kingdom (GBR)</option>
+        <option value="ZAF">South Africa (ZAF)</option>
+        <option value="ARE">United Arab Emirates (ARE)</option>
+        <option value="USA">United States (USA)</option>
+        <option value="KEN">Kenya (KEN)</option>
+      </select>
+      <button type="button" class="btn btn-primary" style="width:100%;" onclick="portalLookupVisa()">Check requirement</button>
+      <div id="visa-result" class="portal-visa__result" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <div class="card__title">Announcements &amp; promotions</div>
+    <div class="card__subtitle">from AERO-GUARD &middot; industry &middot; airlines</div>
+  </div>
+  <ul class="portal-feed">
+    {% for a in announcements %}
+    <li>
+      <span class="portal-feed__tag {{ a.tag }}">{{ a.tag }}</span>
+      <div>
+        <div class="portal-feed__title">{{ a.title }}</div>
+        <div class="portal-feed__meta">{{ a.source }} &middot; {{ a.time }}</div>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+<script src="{{ url_for('static', filename='js/visa-rules.js') }}"></script>
+<script>
+function portalLookupVisa() {
+  const nat = document.getElementById("visa-nationality").value;
+  const dest = document.getElementById("visa-destination").value;
+  const box = document.getElementById("visa-result");
+  const rule = visaRuleFor(nat, dest);
+  box.className = "portal-visa__result " + rule.status;
+  box.innerHTML = "<b>" + rule.label + "</b><br/>" + rule.detail;
+  box.style.display = "block";
+}
+</script>
+
+{% endblock %}

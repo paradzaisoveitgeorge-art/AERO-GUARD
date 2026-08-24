@@ -37,15 +37,20 @@ class Provider(db.Model):
 
 
 class User(UserMixin, db.Model):
-    """A login. Either a provider staff member or a consultant."""
+    """A login: provider staff, a consultant, or an agency-portal user."""
     __tablename__ = "users"
 
     id = db.Column(db.String(20), primary_key=True)
     provider_id = db.Column(db.String(20), db.ForeignKey("providers.id"), nullable=True)
+    # Agency-portal users (AGENCY_ADMIN / AGENCY_USER) belong to one agency.
+    agency_id = db.Column(db.String(20), db.ForeignKey("agencies.id"), nullable=True, index=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(160), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=True)
-    role = db.Column(db.String(20), nullable=False)  # ADMIN | L2 | L1 | CONSULTANT
+    role = db.Column(db.String(20), nullable=False)  # ADMIN | L2 | L1 | CONSULTANT | AGENCY_ADMIN | AGENCY_USER
+    # Sub-user permission matrix (JSON), set by the agency admin. Keys:
+    # reports | visa | chat | escalate. NULL means full access (admins).
+    portal_perms = db.Column(db.Text, nullable=True)
     active = db.Column(db.Boolean, default=True)
     mfa = db.Column(db.Boolean, default=False)
     # P3a: real TOTP secret. Set when the user completes MFA enrollment.
@@ -120,6 +125,22 @@ class User(UserMixin, db.Model):
 
     def is_provider_staff(self) -> bool:
         return self.role in {"ADMIN", "L2", "L1"}
+
+    def is_agency_user(self) -> bool:
+        return self.role in {"AGENCY_ADMIN", "AGENCY_USER"}
+
+    def portal_can(self, perm: str) -> bool:
+        """Sub-user permission check. Agency admins always pass; sub-users
+        pass unless their matrix explicitly disables the permission."""
+        if self.role == "AGENCY_ADMIN":
+            return True
+        if not self.portal_perms:
+            return True
+        try:
+            perms = json.loads(self.portal_perms)
+        except (ValueError, TypeError):
+            return True
+        return bool(perms.get(perm, True))
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +294,34 @@ class PendingIssue(db.Model):
     summary = db.Column(db.String(255))
     age = db.Column(db.String(20))
     priority = db.Column(db.String(10))
+
+
+class TicketIssue(db.Model):
+    """One issued e-ticket — the raw material for the Agency Portal's
+    issuance metrics, Excel exports, ADM-exposure and ROI reporting.
+
+    ``overridden`` + ``override_reason`` mark tickets issued after the agent
+    clicked "Continue with PNR" against an AERO-GUARD warning; when that
+    gamble fails, ``adm_amount`` carries the debit memo that followed.
+    """
+    __tablename__ = "ticket_issues"
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider_id = db.Column(db.String(20), db.ForeignKey("providers.id"), nullable=False, index=True)
+    agency_id = db.Column(db.String(20), db.ForeignKey("agencies.id"), nullable=False, index=True)
+    airline = db.Column(db.String(4), nullable=False)         # marketing carrier code
+    route = db.Column(db.String(40), nullable=False)          # e.g. HRE-ADD-DXB
+    pnr = db.Column(db.String(20), nullable=False)
+    ticket_no = db.Column(db.String(20), nullable=False)
+    pax_name = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Float, default=0.0)                 # ticket value
+    currency = db.Column(db.String(8), default="USD")
+    agent = db.Column(db.String(120), default="")             # issuing agent email
+    issued_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    overridden = db.Column(db.Boolean, default=False)         # issued against a warning
+    override_reason = db.Column(db.String(80), nullable=True)
+    adm_amount = db.Column(db.Float, default=0.0)             # ADM incurred (0 = none)
+    saved_amount = db.Column(db.Float, default=0.0)           # ADM avoided via compliance fix
 
 
 # ---------------------------------------------------------------------------

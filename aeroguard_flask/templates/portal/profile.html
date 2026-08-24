@@ -1,0 +1,131 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}My Profile &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">My Profile</h1>
+    <p class="page-header__subtitle">{{ agency.name }} &middot; manage your team's access ({{ subs | length }}/{{ max_subusers }} sub-user seats used)</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">Account</div>
+  </div>
+  <table class="data-table">
+    <tbody>
+      <tr><td style="width:220px; color:var(--slate-400);">Signed in as</td><td><b>{{ current_user.name }}</b> &middot; {{ current_user.email }}</td></tr>
+      <tr><td style="color:var(--slate-400);">Role</td><td>{{ "Agency Administrator" if current_user.role == "AGENCY_ADMIN" else "Sub-user" }}</td></tr>
+      <tr><td style="color:var(--slate-400);">Agency</td><td>{{ agency.name }} &middot; {{ agency.id }} &middot; <span class="tier-badge {{ agency_tier }}">{{ agency_tier }}</span></td></tr>
+      <tr><td style="color:var(--slate-400);">Subscription seats</td><td>{{ agency.used_seats }}/{{ agency.seats }} GDS seats &middot; {{ max_subusers }} portal sub-users max</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">Sub-users</div>
+    <div class="card__subtitle">Named-user mandate: access is limited to registered individuals. Deactivating revokes access instantly.</div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>User</th><th>Status</th>
+        {% for key, label in perm_keys %}<th title="{{ label }}" style="font-size:11px;">{{ key | title }}</th>{% endfor %}
+        {% if current_user.role == "AGENCY_ADMIN" %}<th>Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in subs %}
+      <tr>
+        <td>
+          <b>{{ row.u.name }}</b>
+          <div class="cell-id">{{ row.u.email }} &middot; last login {{ row.u.last_login }}</div>
+          {% if current_user.role == "AGENCY_ADMIN" %}
+          <form method="post" action="{{ url_for('portal_subuser_perms', uid=row.u.id) }}" id="perms-{{ row.u.id }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          </form>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.u.active %}<span class="tier-badge STANDARD">ACTIVE</span>
+          {% else %}<span class="tier-badge" style="background:rgba(148,163,184,.15); color:var(--slate-400);">DISABLED</span>{% endif %}
+        </td>
+        {% if current_user.role == "AGENCY_ADMIN" %}
+        {% for key, label in perm_keys %}
+        <td style="text-align:center;">
+          <input type="checkbox" name="perm_{{ key }}" form="perms-{{ row.u.id }}"
+                 {{ "checked" if row.perms.get(key, True) else "" }}
+                 onchange="document.getElementById('perms-{{ row.u.id }}').submit()"
+                 title="{{ label }}" />
+        </td>
+        {% endfor %}
+        <td class="row-actions">
+          <form method="post" action="{{ url_for('portal_subuser_toggle', uid=row.u.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="icon-btn amber">{{ "Reactivate" if not row.u.active else "Deactivate" }}</button>
+          </form>
+          <form method="post" action="{{ url_for('portal_subuser_reset', uid=row.u.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="icon-btn sky">Reset password</button>
+          </form>
+          <form method="post" action="{{ url_for('portal_subuser_remove', uid=row.u.id) }}" onsubmit="return confirm('Remove {{ row.u.name }}? Their access ends immediately.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="icon-btn red">Remove</button>
+          </form>
+        </td>
+        {% else %}
+        {% for key, label in perm_keys %}
+        <td style="text-align:center;">{{ "✓" if row.perms.get(key, True) else "—" }}</td>
+        {% endfor %}
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="text-align:center; padding:24px; color:var(--slate-400);">No sub-users yet — add up to {{ max_subusers }} below.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if current_user.role == "AGENCY_ADMIN" %}
+<div class="card">
+  <div class="card__header">
+    <div class="card__title">Add sub-user</div>
+    <div class="card__subtitle">{{ seats_left }} of {{ max_subusers }} seats available &middot; they receive credentials by email (or shown once here)</div>
+  </div>
+  {% if seats_left > 0 %}
+  <form method="post" action="{{ url_for('portal_subuser_add') }}" class="form-stack" style="padding:16px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="form-row-2">
+      <div class="field">
+        <label>Full name *</label>
+        <input name="name" required />
+      </div>
+      <div class="field">
+        <label>Email *</label>
+        <input name="email" type="email" required />
+      </div>
+    </div>
+    <div class="field">
+      <label>Permissions</label>
+      <div class="portal-perm-grid">
+        {% for key, label in perm_keys %}
+        <label class="portal-perm-item"><input type="checkbox" name="perm_{{ key }}" checked /> {{ label }}</label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Add sub-user</button>
+    </div>
+  </form>
+  {% else %}
+  <div style="padding:20px; color:var(--slate-400); font-size:13px;">
+    Sub-user limit reached — your subscription allows a maximum of {{ max_subusers }} sub-users.
+    Remove an inactive user to free a seat.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

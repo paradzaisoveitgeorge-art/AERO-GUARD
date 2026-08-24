@@ -1,0 +1,76 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Airline Policies &amp; IATA &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Airline Policies &amp; IATA Guidelines</h1>
+    <p class="page-header__subtitle">Kept current by the AERO-GUARD helpdesk — the same rules the #AG Smart Button enforces</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">Airline policies</div>
+    <div class="card__subtitle">rules with direct ADM impact</div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>Airline</th><th>Area</th><th>Policy</th><th>Effective</th></tr>
+    </thead>
+    <tbody>
+      {% for p in airline_policies %}
+      <tr>
+        <td><span class="gds-chip">{{ p.airline }}</span></td>
+        <td style="white-space:nowrap;"><b>{{ p.area }}</b></td>
+        <td style="font-size:13px;">{{ p.policy }}</td>
+        <td style="font-size:12px; color:var(--slate-400); white-space:nowrap;">{{ p.effective }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">IATA guidelines</div>
+    <div class="card__subtitle">resolutions &amp; tooling every consultant must observe</div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>Reference</th><th>Topic</th><th>Guideline</th></tr>
+    </thead>
+    <tbody>
+      {% for g in iata_guidelines %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:12px; white-space:nowrap;">{{ g.ref }}</td>
+        <td style="white-space:nowrap;"><b>{{ g.topic }}</b></td>
+        <td style="font-size:13px;">{{ g.note }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="card__header">
+    <div class="card__title">Reference documents</div>
+    <div class="card__subtitle">contracts &amp; standards library</div>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>Category</th><th>Document</th><th>Version</th></tr>
+    </thead>
+    <tbody>
+      {% for d in docs %}
+      <tr>
+        <td><span class="gds-chip">{{ d.cat }}</span></td>
+        <td>{{ d.name }}</td>
+        <td style="font-family:var(--font-mono); font-size:12px;">{{ d.v }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

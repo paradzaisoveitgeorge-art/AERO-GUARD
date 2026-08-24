@@ -24,9 +24,12 @@ ADMIN = "ADMIN"
 L2 = "L2"
 L1 = "L1"
 CONSULTANT = "CONSULTANT"
+AGENCY_ADMIN = "AGENCY_ADMIN"    # agency-portal owner (max 3 sub-users)
+AGENCY_USER = "AGENCY_USER"      # agency-portal sub-user
 
 PROVIDER_ROLES = {ADMIN, L2, L1}
-ALL_ROLES = PROVIDER_ROLES | {CONSULTANT}
+AGENCY_ROLES = {AGENCY_ADMIN, AGENCY_USER}
+ALL_ROLES = PROVIDER_ROLES | {CONSULTANT} | AGENCY_ROLES
 
 
 # Permission matrix — single source of truth.

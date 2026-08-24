@@ -1,0 +1,90 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Reports &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Financial &amp; Issuance Reporting</h1>
+    <p class="page-header__subtitle">Tickets issued, ADM exposure from overridden warnings, and realised savings</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('portal_reports_xlsx') }}">&#11015; Download Excel</a>
+</div>
+
+<div class="portal-pulse">
+  <div class="stat-card tone-indigo">
+    <div class="stat-card__label">Tickets issued</div>
+    <div class="stat-card__value">{{ rows | length }}</div>
+    <div class="stat-card__sub">total value ${{ "{:,.2f}".format(total_value) }}</div>
+  </div>
+  <div class="stat-card tone-emerald">
+    <div class="stat-card__label">ROI — savings realised</div>
+    <div class="stat-card__value">${{ "{:,.0f}".format(roi_saved) }}</div>
+    <div class="stat-card__sub">from adhering to AERO-GUARD rules</div>
+  </div>
+  <div class="stat-card {{ 'tone-amber' if ignored_count else 'tone-emerald' }}">
+    <div class="stat-card__label">Ignored alerts</div>
+    <div class="stat-card__value">{{ ignored_count }}</div>
+    <div class="stat-card__sub">issued against a warning (audited)</div>
+  </div>
+  <div class="stat-card {{ 'pulse-red' if adm_exposure else 'tone-emerald' }}">
+    <div class="stat-card__label">ADM incurred</div>
+    <div class="stat-card__value">${{ "{:,.0f}".format(adm_exposure) }}</div>
+    <div class="stat-card__sub">from overridden warnings</div>
+  </div>
+</div>
+
+<form method="get" class="filter-bar">
+  <label class="filter-select">
+    <span>Airline:</span>
+    <select name="airline" onchange="this.form.submit()">
+      <option value="ALL" {{ "selected" if filter_airline == "ALL" else "" }}>ALL</option>
+      {% for a in airlines %}
+      <option value="{{ a }}" {{ "selected" if filter_airline == a else "" }}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+
+<div class="card">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Ticket #</th><th>PNR</th><th>Passenger</th><th>Airline</th><th>Route</th>
+        <th>Amount</th><th>Issued</th><th>Agent</th><th>Compliance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in rows %}
+      <tr>
+        <td style="font-family:var(--font-mono); font-size:12px;">{{ t.ticket_no }}</td>
+        <td style="font-family:var(--font-mono); font-size:12px;">{{ t.pnr }}</td>
+        <td>{{ t.pax_name }}</td>
+        <td><span class="gds-chip">{{ t.airline }}</span></td>
+        <td style="font-size:12px;">{{ t.route }}</td>
+        <td>${{ "{:,.2f}".format(t.amount or 0) }}</td>
+        <td style="font-size:12px; color:var(--slate-400);">{{ t.issued_at.strftime("%d %b %H:%M") if t.issued_at else "" }}</td>
+        <td style="font-size:12px;">{{ t.agent }}</td>
+        <td>
+          {% if t.overridden %}
+            <span class="tier-badge CUSTOM" title="{{ t.override_reason }}">OVERRIDE</span>
+            {% if t.adm_amount %}<span class="tier-badge" style="background:rgba(244,63,94,.15); color:#fb7185;">ADM ${{ "{:,.0f}".format(t.adm_amount) }}</span>{% endif %}
+          {% elif t.saved_amount %}
+            <span class="tier-badge STANDARD" title="ADM avoided">SAVED ${{ "{:,.0f}".format(t.saved_amount) }}</span>
+          {% else %}
+            <span class="tier-badge GOLD">CLEAN</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="text-align:center; padding:24px; color:var(--slate-400);">No tickets in this view.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="field-hint" style="margin-top:10px;">
+  The Excel download is named <code>{{ agency.name.replace(' ', '') }}_Issuance_Report_&lt;date&gt;.xlsx</code>
+  and includes the override-reason and ADM columns for accounting.
+</p>
+
+{% endblock %}

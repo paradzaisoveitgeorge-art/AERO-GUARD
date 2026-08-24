@@ -23,18 +23,21 @@ from models import (
     Alert,
     PendingIssue,
     AuditLog,
+    TicketIssue,
 )
 
 
 def _wipe() -> None:
-    """Delete every row in every table. Order matters (children first)."""
+    """Delete every row in every table. Order matters (children first).
+    Users must go before agencies (users.agency_id FK) and providers."""
     Message.query.delete()
     Thread.query.delete()
     Escalation.query.delete()
     AuditLog.query.delete()
+    TicketIssue.query.delete()
     AgencyMember.query.delete()
-    Agency.query.delete()
     User.query.delete()
+    Agency.query.delete()
     Provider.query.delete()
     Alert.query.delete()
     PendingIssue.query.delete()
@@ -126,6 +129,67 @@ def seed_all() -> None:
     ]
     members[0].welcome_sent_at = ago(days=2)  # manager already welcomed
     db.session.add_all(members)
+
+    # --- Agency Portal logins (added after agencies exist: users.agency_id FK) --
+    import json as _json
+    rumbi = User(id="U-A1", provider_id=None, agency_id="AG-1001",
+                 name="Rumbi Chikafu", email="rumbi@skylink.zw",
+                 role="AGENCY_ADMIN", active=True, mfa=False, last_login="now")
+    tendai = User(id="U-A2", provider_id=None, agency_id="AG-1001",
+                  name="Tendai Moyo", email="tendai@skylink.zw",
+                  role="AGENCY_USER", active=True, mfa=False, last_login="yesterday",
+                  # Demo the permission matrix: no financial reports for Tendai.
+                  portal_perms=_json.dumps({"reports": False, "visa": True, "chat": True, "escalate": True}))
+    for u in (rumbi, tendai):
+        u.set_password(DEMO_PASSWORD)
+    rumbi.last_login_at = now
+    tendai.last_login_at = ago(days=1)
+    db.session.add_all([rumbi, tendai])
+
+    # --- Ticket issuance history (feeds portal KPIs, reports, Excel export) ---
+    # Deterministic spread over the last 30 days. Every 7th ticket was issued
+    # against a warning (override); some of those gambles turned into ADMs.
+    airlines = [
+        ("ET", "HRE-ADD",     412.0), ("EK", "HRE-ADD-DXB", 815.0),
+        ("SA", "HRE-JNB",     268.0), ("LH", "JNB-FRA",     978.0),
+        ("QR", "HRE-DOH-LHR", 1105.0), ("ET", "ADD-NBO",    329.0),
+    ]
+    pax_names = ["MOYO/T", "CHIKAFU/R", "NDLOVU/C", "SIBANDA/K", "GWENZI/S",
+                 "MUTASA/B", "DUBE/L", "BANDA/J", "PHIRI/M", "NCUBE/A"]
+    reasons = ["Client accepted financial risk", "Corporate waiver provided",
+               "Client requested override"]
+    for i in range(34):
+        airline, route, base = airlines[i % len(airlines)]
+        overridden = (i % 7 == 3)
+        adm = 300.0 if (overridden and i % 14 == 3) else 0.0
+        t = TicketIssue(
+            provider_id="PRV-AG", agency_id="AG-1001",
+            airline=airline, route=route,
+            pnr=f"{'XKQWZ'[i % 5]}{7 - (i % 5)}K{2 + (i % 7)}L{i % 9}",
+            ticket_no=f"071-22918{84400 + i}",
+            pax_name=pax_names[i % len(pax_names)],
+            amount=round(base + (i % 5) * 37.5, 2), currency="USD",
+            agent="tendai@skylink.zw" if i % 3 else "rumbi@skylink.zw",
+            overridden=overridden,
+            override_reason=reasons[i % len(reasons)] if overridden else None,
+            adm_amount=adm,
+            saved_amount=0.0 if overridden else (180.0 if i % 4 == 1 else 0.0),
+        )
+        t.issued_at = now - timedelta(days=i % 30, hours=(i * 3) % 22)
+        db.session.add(t)
+    # A few rows for Voyage Africa so the provider-side numbers stay plural.
+    for i in range(6):
+        t = TicketIssue(
+            provider_id="PRV-SKY", agency_id="AG-1002",
+            airline="EK" if i % 2 else "SA", route="JNB-DXB" if i % 2 else "CPT-JNB",
+            pnr=f"RR8{i}LM", ticket_no=f"176-88410{100 + i}",
+            pax_name="VOYAGE/PAX", amount=640.0 + i * 55, currency="USD",
+            agent="ops@voyage.co.za", overridden=(i == 4),
+            override_reason=reasons[0] if i == 4 else None,
+            adm_amount=0.0, saved_amount=210.0 if i == 2 else 0.0,
+        )
+        t.issued_at = now - timedelta(days=i * 4, hours=5)
+        db.session.add(t)
 
     # --- Escalations ------------------------------------------------------
     esc_specs = [

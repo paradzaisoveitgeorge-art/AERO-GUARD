@@ -254,35 +254,13 @@ function resetPassport() {
   document.getElementById("passport-idle").style.display = "flex";
 }
 
-// ---------- Visa requirement lookup (mock) ----------
-// Keyed "NATIONALITY>DESTINATION". Anything not listed falls back to a
-// generic "check with embassy" result so the demo never dead-ends.
-const VISA_RULES = {
-  "ZWE>GBR": { status: "required", label: "Visa required", detail: "Standard Visitor visa must be obtained before travel. Apply online; biometrics at VFS." },
-  "ZWE>ZAF": { status: "free", label: "Visa-free", detail: "Up to 90 days visa-free for Zimbabwean passport holders." },
-  "ZWE>ARE": { status: "voa", label: "Visa on arrival / e-visa", detail: "30-day e-visa available; sponsor or hotel booking may be requested." },
-  "ZWE>USA": { status: "required", label: "Visa required", detail: "B1/B2 visa required. In-person interview at US Embassy Harare." },
-  "ZWE>KEN": { status: "eta", label: "eTA required", detail: "Electronic Travel Authorisation required before boarding (East Africa)." },
-  "ZAF>GBR": { status: "free", label: "Visa-free", detail: "Up to 6 months visa-free for South African passport holders." },
-  "GBR>USA": { status: "eta", label: "ESTA required", detail: "Visa Waiver Program — ESTA authorisation required before travel." },
-  "NGA>GBR": { status: "required", label: "Visa required", detail: "Standard Visitor visa required. Proof of funds and return ticket needed." },
-  "IND>ARE": { status: "voa", label: "Visa on arrival / e-visa", detail: "14/30/90-day e-visa options available for Indian nationals." },
-};
-
+// ---------- Visa requirement lookup ----------
+// Dataset + matcher live in visa-rules.js (shared with the Agency Portal).
 function lookupVisa() {
   const nat = document.getElementById("visa-nationality").value;
   const dest = document.getElementById("visa-destination").value;
   const box = document.getElementById("visa-result");
-
-  if (nat === dest) {
-    renderVisa(box, "free", "Domestic / same country", "No visa required — origin and destination nationality match.");
-    return;
-  }
-  const rule = VISA_RULES[nat + ">" + dest] || {
-    status: "check",
-    label: "Confirm with embassy",
-    detail: "No cached rule for this pairing. Verify with the destination embassy or IATA Timatic before ticketing.",
-  };
+  const rule = visaRuleFor(nat, dest);
   renderVisa(box, rule.status, rule.label, rule.detail);
 }
 

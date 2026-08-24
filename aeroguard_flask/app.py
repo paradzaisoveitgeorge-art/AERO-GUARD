@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import csv
 import io
+import json
 import os
 import random
 import secrets
@@ -62,10 +63,11 @@ from models import (
     PolicyDoc,
     Provider,
     Thread,
+    TicketIssue,
     User,
     db,
 )
-from permissions import can, require
+from permissions import can, require, require_role
 from mailer import send_email, is_configured as mail_is_configured
 
 # Load .env if present (no-op in production where vars come from the host)
@@ -182,8 +184,11 @@ def _require_login_for_provider_console():
         return
     if not current_user.is_authenticated:
         return redirect(url_for("login", next=request.path))
-    # Consultants cannot access /provider/* (the helpdesk console).
+    # Consultants and agency users cannot access /provider/* (the console).
     if request.path.startswith("/provider") and not current_user.is_provider_staff():
+        abort(403)
+    # The Agency Portal is only for agency-portal roles.
+    if request.path.startswith("/portal") and not current_user.is_agency_user():
         abort(403)
 
 
@@ -420,8 +425,13 @@ def all_agencies() -> list[Agency]:
 
 
 def _landing_url_for(user: User) -> str:
-    """Where a user lands after login: provider staff → console, consultant → smartpoint."""
-    return url_for("provider_dashboard") if user.is_provider_staff() else url_for("smartpoint_demo")
+    """Where a user lands after login: provider staff → console,
+    agency users → their portal, consultants → smartpoint."""
+    if user.is_provider_staff():
+        return url_for("provider_dashboard")
+    if user.is_agency_user():
+        return url_for("portal_dashboard")
+    return url_for("smartpoint_demo")
 
 
 # --- Routes: auth ---------------------------------------------------------
@@ -806,6 +816,8 @@ def reset_password(token: str):
 def smartpoint_demo():
     if current_user.is_provider_staff():
         return redirect(url_for("provider_dashboard"))
+    if current_user.is_agency_user():
+        return redirect(url_for("portal_dashboard"))
     return render_template("smartpoint.html", tutorials=TUTORIALS)
 
 
@@ -887,6 +899,380 @@ def consultant_chat_context():
         "deep_link": deep_link,
         "message": "Support chat updated — the helpdesk sees your PNR context.",
     })
+
+
+# --- Routes: Agency Portal (client updates Batch 3) ------------------------
+#
+# The third tier: agency admins (max 3 sub-users) get performance KPIs,
+# issuance reporting with Excel export, visa lookup, sub-user management
+# with a permission matrix, and the airline-policy/IATA reference page.
+
+MAX_AGENCY_SUBUSERS = 3
+PORTAL_PERM_KEYS = [
+    ("reports", "View financial / issuance reports"),
+    ("visa", "Use the visa requirement tool"),
+    ("chat", "Use live chat with AERO-GUARD"),
+    ("escalate", "Raise case escalations"),
+]
+
+
+def current_agency() -> Agency:
+    """The logged-in portal user's agency, or 403 if the link is broken."""
+    a = Agency.query.get(current_user.agency_id) if current_user.agency_id else None
+    if a is None or a.deleted_at is not None:
+        abort(403)
+    return a
+
+
+def write_portal_audit(action: str, target_type: str, target_id: str, *, note: str = "") -> None:
+    """Audit rows from portal actions land under the agency's provider so
+    the helpdesk sees them in the tenant-scoped audit log."""
+    a = current_agency()
+    db.session.add(AuditLog(
+        provider_id=a.provider_id,
+        actor_user_id=current_user.id,
+        action=action,
+        target_type=target_type,
+        target_id=str(target_id),
+        note=note or None,
+    ))
+
+
+def render_portal(template_name, active_nav, **context):
+    a = current_agency()
+    return render_template(
+        template_name,
+        agency=a,
+        agency_tier=policy_tier(a.policy_level),
+        active_nav=active_nav,
+        **context,
+    )
+
+
+def _traffic_light(pct: float) -> str:
+    """The spec's traffic-light bands: ≥90 green, 75–89 amber, <75 red."""
+    if pct >= 90:
+        return "green"
+    if pct >= 75:
+        return "amber"
+    return "red"
+
+
+def _chart_area_path(series, key, w=640, h=150, maxv=None):
+    """SVG area path for the 30-day compliance chart (no JS chart lib)."""
+    if not series:
+        return ""
+    maxv = maxv or 1
+    n = len(series)
+    pts = []
+    for i, s in enumerate(series):
+        x = round(i * (w / max(1, n - 1)), 1)
+        y = round(h - (min(s[key], maxv) / maxv) * (h - 14), 1)
+        pts.append(f"{x},{y}")
+    return f"M0,{h} L" + " L".join(pts) + f" L{w},{h} Z"
+
+
+@app.route("/portal")
+def portal_dashboard():
+    a = current_agency()
+    tickets = TicketIssue.query.filter_by(agency_id=a.id).all()
+    total = len(tickets)
+    overridden = [t for t in tickets if t.overridden]
+    compliance_pct = round(100.0 * (1 - len(overridden) / total), 1) if total else 100.0
+    adm_avoided = round(sum(t.saved_amount or 0 for t in tickets))
+    adm_incurred = round(sum(t.adm_amount or 0 for t in tickets))
+    open_esc = (Escalation.query
+                .filter_by(agency=a.name)
+                .filter(Escalation.status != "RESOLVED").count())
+
+    # 30-day series: compliant vs overridden issuance per day.
+    today = datetime.utcnow().date()
+    days = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    by_day = {d: {"ok": 0, "ovr": 0} for d in days}
+    for t in tickets:
+        d = (t.issued_at or datetime.utcnow()).date()
+        if d in by_day:
+            by_day[d]["ovr" if t.overridden else "ok"] += 1
+    series = [{"label": d.strftime("%d %b"), "ok": by_day[d]["ok"], "ovr": by_day[d]["ovr"],
+               "total": by_day[d]["ok"] + by_day[d]["ovr"]} for d in days]
+    maxv = max(1, max(s["total"] for s in series))
+
+    announcements = [
+        {"source": "AERO-GUARD", "time": "today", "tag": "promo",
+         "title": "Q3 loyalty promo: agencies above 95% compliance earn a service-fee rebate."},
+        {"source": "IATA", "time": "2h ago", "tag": "policy",
+         "title": "New API/PNRGOV passport data mandate for ZW→ZA effective 01 Sep 2026."},
+        {"source": "Emirates", "time": "yesterday", "tag": "baggage",
+         "title": "EK economy piece-concept baggage updated on East Africa routes."},
+    ]
+    return render_portal(
+        "portal/dashboard.html", "DASHBOARD",
+        total_tickets=total,
+        compliance_pct=compliance_pct,
+        compliance_light=_traffic_light(compliance_pct),
+        adm_avoided=adm_avoided,
+        adm_incurred=adm_incurred,
+        open_escalations=open_esc,
+        avg_ticketing="4.2m",
+        series=series,
+        chart_ok_path=_chart_area_path(series, "total", maxv=maxv),
+        chart_ovr_path=_chart_area_path(series, "ovr", maxv=maxv),
+        announcements=announcements,
+    )
+
+
+@app.route("/portal/reports")
+def portal_reports():
+    if not current_user.portal_can("reports"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+    filter_airline = request.args.get("airline", "ALL")
+    q = (TicketIssue.query.filter_by(agency_id=a.id)
+         .order_by(TicketIssue.issued_at.desc()))
+    tickets = q.all()
+    airlines = sorted({t.airline for t in tickets})
+    rows = [t for t in tickets if filter_airline == "ALL" or t.airline == filter_airline]
+
+    total_value = round(sum(t.amount or 0 for t in rows), 2)
+    adm_exposure = round(sum(t.adm_amount or 0 for t in rows), 2)
+    ignored = [t for t in rows if t.overridden]
+    roi_saved = round(sum(t.saved_amount or 0 for t in rows), 2)
+    return render_portal(
+        "portal/reports.html", "REPORTS",
+        rows=rows, airlines=airlines, filter_airline=filter_airline,
+        total_value=total_value, adm_exposure=adm_exposure,
+        ignored_count=len(ignored), roi_saved=roi_saved,
+    )
+
+
+@app.route("/portal/reports.xlsx")
+def portal_reports_xlsx():
+    if not current_user.portal_can("reports"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Issuance"
+    head = Font(bold=True)
+    headers = ["Ticket #", "PNR", "Passenger", "Airline", "Route",
+               "Amount", "Currency", "Issued (UTC)", "Agent",
+               "Overridden warning", "Override reason", "ADM incurred", "ADM avoided"]
+    ws.append(headers)
+    for c in ws[1]:
+        c.font = head
+    tickets = (TicketIssue.query.filter_by(agency_id=a.id)
+               .order_by(TicketIssue.issued_at.desc()).all())
+    for t in tickets:
+        ws.append([
+            t.ticket_no, t.pnr, t.pax_name, t.airline, t.route,
+            round(t.amount or 0, 2), t.currency,
+            t.issued_at.strftime("%Y-%m-%d %H:%M") if t.issued_at else "",
+            t.agent, "YES" if t.overridden else "",
+            t.override_reason or "", round(t.adm_amount or 0, 2),
+            round(t.saved_amount or 0, 2),
+        ])
+    ws.append([])
+    totals = ["TOTALS", "", "", "", "", round(sum(t.amount or 0 for t in tickets), 2),
+              "", "", "", sum(1 for t in tickets if t.overridden), "",
+              round(sum(t.adm_amount or 0 for t in tickets), 2),
+              round(sum(t.saved_amount or 0 for t in tickets), 2)]
+    ws.append(totals)
+    for c in ws[ws.max_row]:
+        c.font = head
+    widths = [14, 10, 24, 8, 16, 10, 9, 17, 26, 18, 26, 13, 12]
+    for i, wdt in enumerate(widths, start=1):
+        ws.column_dimensions[chr(64 + i)].width = wdt
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    # Spec filename format: NabiTravel_Issuance_Report_2026-08-08.xlsx
+    stamp = datetime.utcnow().strftime("%Y-%m-%d")
+    fname = f"{a.name.replace(' ', '')}_Issuance_Report_{stamp}.xlsx"
+    write_portal_audit("PORTAL_REPORT_EXPORT", "agency", a.id, note=fname)
+    db.session.commit()
+    return Response(
+        buf.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+# ---- Portal: My Profile (sub-user management, max 3) ----------------------
+
+def _own_subuser_or_404(uid: str) -> User:
+    u = User.query.get(uid)
+    if u is None or u.agency_id != current_user.agency_id or u.role != "AGENCY_USER":
+        abort(404)
+    return u
+
+
+def _perms_from_form(form) -> str:
+    return json.dumps({key: bool(form.get(f"perm_{key}")) for key, _ in PORTAL_PERM_KEYS})
+
+
+@app.route("/portal/profile")
+def portal_profile():
+    a = current_agency()
+    subs = (User.query.filter_by(agency_id=a.id, role="AGENCY_USER")
+            .order_by(User.created_at).all())
+    sub_rows = []
+    for s in subs:
+        try:
+            perms = json.loads(s.portal_perms) if s.portal_perms else {}
+        except (ValueError, TypeError):
+            perms = {}
+        sub_rows.append({"u": s, "perms": perms})
+    return render_portal(
+        "portal/profile.html", "PROFILE",
+        subs=sub_rows, max_subusers=MAX_AGENCY_SUBUSERS,
+        perm_keys=PORTAL_PERM_KEYS,
+        seats_left=MAX_AGENCY_SUBUSERS - len(subs),
+    )
+
+
+@app.route("/portal/profile/subusers/add", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_subuser_add():
+    a = current_agency()
+    count = User.query.filter_by(agency_id=a.id, role="AGENCY_USER").count()
+    if count >= MAX_AGENCY_SUBUSERS:
+        flash(f"Sub-user limit reached — your subscription allows {MAX_AGENCY_SUBUSERS}.", "error")
+        return redirect(url_for("portal_profile"))
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    if not name or not email or "@" not in email:
+        flash("A name and a valid email are required.", "error")
+        return redirect(url_for("portal_profile"))
+    if User.query.filter(db.func.lower(User.email) == email).first():
+        flash("That email already has an account.", "error")
+        return redirect(url_for("portal_profile"))
+    temp_password = secrets.token_urlsafe(8)
+    u = User(
+        id=f"AU-{random.randint(100, 999)}",
+        provider_id=None,
+        agency_id=a.id,
+        name=name,
+        email=email,
+        role="AGENCY_USER",
+        active=True,
+        mfa=False,
+        last_login="never",
+        portal_perms=_perms_from_form(request.form),
+    )
+    u.set_password(temp_password)
+    db.session.add(u)
+    write_portal_audit("PORTAL_SUBUSER_ADD", "user", u.id, note=email)
+    db.session.commit()
+    sent = send_email(
+        to=email,
+        subject=f"Your AERO-GUARD portal access — {a.name}",
+        text=(f"Hi {name},\n\n{current_user.name} added you to {a.name}'s AERO-GUARD portal.\n\n"
+              f"Sign in: {url_for('login', _external=True)}\nEmail: {email}\n"
+              f"Temporary password: {temp_password}\n\nPlease change it after first sign-in."),
+    )
+    if sent:
+        flash(f"{name} added — credentials emailed to {email}.", "success")
+    else:
+        flash(f"{name} added. Temporary password (shown once): {temp_password}", "success")
+    return redirect(url_for("portal_profile"))
+
+
+@app.route("/portal/profile/subusers/<uid>/toggle", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_subuser_toggle(uid):
+    u = _own_subuser_or_404(uid)
+    u.active = not u.active
+    write_portal_audit("PORTAL_SUBUSER_TOGGLE", "user", u.id,
+                       note=f"{u.email} → {'active' if u.active else 'deactivated'}")
+    db.session.commit()
+    flash(f"{u.name} {'re-activated' if u.active else 'deactivated — access revoked immediately'}.",
+          "success" if u.active else "info")
+    return redirect(url_for("portal_profile"))
+
+
+@app.route("/portal/profile/subusers/<uid>/remove", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_subuser_remove(uid):
+    u = _own_subuser_or_404(uid)
+    write_portal_audit("PORTAL_SUBUSER_REMOVE", "user", u.id, note=u.email)
+    db.session.delete(u)
+    db.session.commit()
+    flash(f"{u.name} removed.", "success")
+    return redirect(url_for("portal_profile"))
+
+
+@app.route("/portal/profile/subusers/<uid>/perms", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_subuser_perms(uid):
+    u = _own_subuser_or_404(uid)
+    u.portal_perms = _perms_from_form(request.form)
+    write_portal_audit("PORTAL_SUBUSER_PERMS", "user", u.id, note=u.portal_perms)
+    db.session.commit()
+    flash(f"Permissions updated for {u.name}.", "success")
+    return redirect(url_for("portal_profile"))
+
+
+@app.route("/portal/profile/subusers/<uid>/reset", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_subuser_reset(uid):
+    u = _own_subuser_or_404(uid)
+    temp_password = secrets.token_urlsafe(8)
+    u.set_password(temp_password)
+    write_portal_audit("PORTAL_SUBUSER_RESET", "user", u.id, note=u.email)
+    db.session.commit()
+    sent = send_email(
+        to=u.email,
+        subject="Your AERO-GUARD portal password was reset",
+        text=f"Hi {u.name},\n\nYour temporary password: {temp_password}\nPlease change it after signing in.",
+    )
+    if sent:
+        flash(f"New temporary password emailed to {u.email}.", "success")
+    else:
+        flash(f"New temporary password for {u.name} (shown once): {temp_password}", "success")
+    return redirect(url_for("portal_profile"))
+
+
+# ---- Portal: airline policies & IATA guidelines (kept current) -------------
+
+AIRLINE_POLICY_FEED = [
+    {"airline": "EK", "area": "Name changes", "effective": "Current",
+     "policy": "No name changes after PNR creation — cancel and rebook. No name changes on issued tickets."},
+    {"airline": "LH", "area": "Name changes", "effective": "Current",
+     "policy": "Corrections up to 3 characters permitted before ticketing with documentary proof."},
+    {"airline": "ET", "area": "Baggage", "effective": "01 Aug 2026",
+     "policy": "Economy piece concept 2PC · 23kg on African routes; excess charged per piece."},
+    {"airline": "SA", "area": "Point of commencement", "effective": "Current",
+     "policy": "Tickets must be issued in the country of commencement — violations attract USD 300 ADM."},
+    {"airline": "QR", "area": "ADM disputes", "effective": "Current",
+     "policy": "Evidence pack required within 14 days of ADM issue; disputes via CASS portal only."},
+    {"airline": "EK", "area": "Infants", "effective": "Current",
+     "policy": "INF must be associated to an adult on the same PNR; maximum 1 INF per ADT."},
+]
+
+IATA_GUIDELINES = [
+    {"ref": "Reso 830a", "topic": "Ticketing time limits",
+     "note": "Agents must observe carrier TTLs; auto-cancellation applies on expiry."},
+    {"ref": "Reso 890", "topic": "Card sales rules",
+     "note": "Merchant of record rules for BSP card sales; CVV verification mandatory."},
+    {"ref": "Reso 852", "topic": "Designation / selection of validating carrier",
+     "note": "The validating carrier must participate in all segments' interline agreements."},
+    {"ref": "TIMATIC", "topic": "Travel document verification",
+     "note": "Verify passport validity (6 months), visas and transit requirements before issuance."},
+]
+
+
+@app.route("/portal/policies")
+def portal_policies():
+    docs = PolicyDoc.query.all()
+    return render_portal(
+        "portal/policies.html", "POLICIES",
+        airline_policies=AIRLINE_POLICY_FEED,
+        iata_guidelines=IATA_GUIDELINES,
+        docs=[{"cat": d.cat, "name": d.name, "v": d.v} for d in docs],
+    )
 
 
 # --- Routes: provider dashboard -------------------------------------------

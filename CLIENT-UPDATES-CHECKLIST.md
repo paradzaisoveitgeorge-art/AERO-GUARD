@@ -41,20 +41,20 @@ demo Batches 1–3 are not rebuilt.
 
 | # | Status | Update | Detail |
 |---|--------|--------|--------|
-| AP-1 | ⬜ | Roles + portal shell | `AGENCY_ADMIN` + agency sub-users (max 3); login routes them to the new Agency Portal |
-| AP-2 | ⬜ | Pulse KPI cards | Compliance Rate, ADM Avoided ($), Active Queue, Avg Ticketing Time — with trend arrows and **traffic-light** thresholds (≥90% green · 75–89% amber · <75% red) |
-| AP-3 | ⬜ | 30-day compliance chart | Area chart: Compliant / Out-of-Policy / Flagged bookings over time |
-| AP-4 | ⬜ | My Profile — sub-user CRUD | Add / remove / reset-password for sub-users, hard-capped at 3; deactivation instantly revokes access |
-| AP-5 | ⬜ | Permission matrix | Checkbox matrix per sub-user (e.g. can view financial reports vs. #AG-only) to protect revenue data |
-| AP-6 | ⬜ | Issuance reports + Excel export | Tickets issued by airline / date / route / amount; downloadable **.xlsx** named `{Agency}_Issuance_Report_{YYYY-MM-DD}.xlsx` |
+| AP-1 | ✅ 2026-08-25 | Roles + portal shell | `AGENCY_ADMIN` + agency sub-users (max 3); login routes them to the new Agency Portal (`rumbi@skylink.zw` / `tendai@skylink.zw` demo accounts) |
+| AP-2 | ✅ 2026-08-25 | Pulse KPI cards | Compliance Rate, ADM Avoided ($), Active Queue, Avg Ticketing Time — with **traffic-light** thresholds (≥90% green · 75–89% amber · <75% red), driven by real ticket data |
+| AP-3 | ✅ 2026-08-25 | 30-day compliance chart | SVG area chart: all issuance vs issued-against-warning, 70/30 layout split per spec |
+| AP-4 | ✅ 2026-08-25 | My Profile — sub-user CRUD | Add / remove / reset-password / deactivate (instant revoke), hard-capped at 3 — 4th add rejected with flash |
+| AP-5 | ✅ 2026-08-25 | Permission matrix | Checkbox matrix per sub-user (reports / visa / chat / escalate); server-enforced — sub-user without `reports` gets 403 on the reports page and Excel export |
+| AP-6 | ✅ 2026-08-25 | Issuance reports + Excel export | Tickets by airline / date / route / amount with override + ADM columns; real **.xlsx** named `{Agency}_Issuance_Report_{YYYY-MM-DD}.xlsx` |
 | AP-7 | ⬜ | ADM exposure report | ADMs incurred specifically from "Continue with PNR" overrides, with the recorded justification codes |
 | AP-8 | ⬜ | Ignored-alerts audit | Portal view of bypassed compliance alerts (synced with provider-side audit) |
 | AP-9 | ⬜ | ROI / savings dashboard | Total money saved by adhering to AERO-GUARD rules |
-| AP-10 | ⬜ | Visa tool + dashboard widget | Full lookup page **and** a mini quick-access widget on the portal dashboard |
+| AP-10 | ✅ 2026-08-25 | Visa tool + dashboard widget | Quick-access widget on the portal dashboard, sharing one visa dataset with the #AG Smart Button (`visa-rules.js`) |
 | AP-11 | ⬜ | Live chat w/ greeting flow | Chat prompts for Agent Name, Agency, PCC, Country; mandatory legal disclaimer at start; scope limits (no GDS tech questions, no airline representation, no refunds via chat) |
 | AP-12 | ⬜ | Case escalation module | Separate from chat; structured ticket with priority (High/Med/Low) + type (Financial/Technical) and status tracking |
 | AP-13 | ⬜ | Announcements feed | Receives provider broadcasts: promos, vouchers, maintenance, industry updates |
-| AP-14 | ⬜ | Airline policies & IATA page | Client's caps-lock ask: portal section kept current with airline policies + IATA guidelines |
+| AP-14 | ✅ 2026-08-25 | Airline policies & IATA page | Portal section with airline policies (ADM-impact rules), IATA guidelines and the reference-document library |
 
 ## D. Provider Helpdesk — intelligence & comms
 
@@ -74,7 +74,7 @@ demo Batches 1–3 are not rebuilt.
 | XC-1 | ⬜ | Legal pages + chat disclaimer | ToS §12 ADM-liability disclaimer, SaaS seat-cap & named-user clause, Data Privacy & Tenancy Isolation — footer links on both portals; disclaimer shown at chat start |
 | XC-2 | ⬜ | Dark / Light mode toggle | Requested for late-shift agents; app is currently dark-only |
 | XC-3 | ⬜ | Public JSON API per spec | `POST /api/v1/compliance/validate` and `POST /api/v1/compliance/escalate` implementing the documented request/response payloads (+ ticket status URL) |
-| XC-4 | 🟡 | Responsive KPI cards | Pulse cards stack vertically on mobile; chart stays full-width |
+| XC-4 | ✅ 2026-08-25 | Responsive KPI cards | Portal pulse cards stack 4→2→1 columns on smaller screens; chart and 70/30 grid collapse full-width |
 
 ---
 
