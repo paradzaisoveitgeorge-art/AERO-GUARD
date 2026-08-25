@@ -56,6 +56,7 @@ from models import (
     AgencyMember,
     Alert,
     AuditLog,
+    Broadcast,
     Escalation,
     LearningModule,
     Message,
@@ -397,10 +398,20 @@ def agency_to_dict(a: Agency) -> dict:
     }
 
 
+ESCALATION_TIERS = {
+    "GENERAL": "Tier 1 · General",
+    "FINANCIAL": "Tier 2 · Financial",
+    "TECHNICAL": "Tier 3 · Technical",
+}
+
+
 def escalation_to_dict(e: Escalation) -> dict:
+    category = e.category or "GENERAL"
     return {
         "id": e.id, "agency": e.agency, "pnr": e.pnr, "subject": e.subject,
         "level": e.level, "priority": e.priority,
+        "category": category,
+        "tier_label": ESCALATION_TIERS.get(category, ESCALATION_TIERS["GENERAL"]),
         "opened": humanize(e.created_at),
         "status": e.status,
         "sla": humanize_sla(e.sla_due_at),
@@ -997,13 +1008,12 @@ def portal_dashboard():
                "total": by_day[d]["ok"] + by_day[d]["ovr"]} for d in days]
     maxv = max(1, max(s["total"] for s in series))
 
+    # Broadcast engine: same rows the provider posts once — zero-lag mirror.
     announcements = [
-        {"source": "AERO-GUARD", "time": "today", "tag": "promo",
-         "title": "Q3 loyalty promo: agencies above 95% compliance earn a service-fee rebate."},
-        {"source": "IATA", "time": "2h ago", "tag": "policy",
-         "title": "New API/PNRGOV passport data mandate for ZW→ZA effective 01 Sep 2026."},
-        {"source": "Emirates", "time": "yesterday", "tag": "baggage",
-         "title": "EK economy piece-concept baggage updated on East Africa routes."},
+        {"source": b.source, "time": humanize(b.created_at), "tag": b.tag,
+         "title": b.title, "kind": b.kind}
+        for b in (Broadcast.query.filter_by(provider_id=a.provider_id)
+                  .order_by(Broadcast.created_at.desc()).limit(6).all())
     ]
     return render_portal(
         "portal/dashboard.html", "DASHBOARD",
@@ -1275,6 +1285,199 @@ def portal_policies():
     )
 
 
+# ---- Provider: broadcast engine (single source → everywhere) ---------------
+
+@app.route("/provider/broadcasts/new", methods=["POST"])
+@require_role("ADMIN")
+def provider_broadcast_new():
+    title = (request.form.get("title") or "").strip()
+    if not title:
+        flash("A broadcast needs a title.", "error")
+        return redirect(url_for("provider_dashboard"))
+    kind = request.form.get("kind") or "INDUSTRY"
+    tag = {"MAINTENANCE": "maint", "PROMO": "promo"}.get(kind, request.form.get("tag") or "policy")
+    b = Broadcast(
+        provider_id=current_provider_id(),
+        kind=kind,
+        source=(request.form.get("source") or "AERO-GUARD").strip()[:40],
+        tag=tag,
+        title=title[:255],
+        author=current_user.name,
+    )
+    db.session.add(b)
+    write_audit("BROADCAST_POST", "broadcast", title[:40], note=kind)
+    # Email push to every agency admin of this tenant (simulated when SMTP
+    # is unconfigured — the mailer logs it).
+    notified = 0
+    for a in all_agencies():
+        if a.admin_email:
+            send_email(
+                to=a.admin_email,
+                subject=f"[AERO-GUARD {kind.title()}] {title[:80]}",
+                text=(f"Hello {a.name},\n\n{title}\n\n"
+                      "This notice is also on your Agency Portal dashboard.\n\n— AERO-GUARD"),
+            )
+            notified += 1
+    db.session.commit()
+    flash(f"Broadcast published — live on the provider feed and {notified} agency portal(s); "
+          f"email push {'sent' if mail_is_configured() else 'logged (SMTP not configured)'}.",
+          "success")
+    return redirect(url_for("provider_dashboard"))
+
+
+@app.route("/provider/broadcasts/<int:bid>/delete", methods=["POST"])
+@require_role("ADMIN")
+def provider_broadcast_delete(bid):
+    b = Broadcast.query.get(bid)
+    if b is None or b.provider_id != current_provider_id():
+        abort(404)
+    db.session.delete(b)
+    write_audit("BROADCAST_DELETE", "broadcast", str(bid), note=b.title[:60])
+    db.session.commit()
+    flash("Broadcast removed from all feeds.", "success")
+    return redirect(url_for("provider_dashboard"))
+
+
+# ---- Portal: live chat with greeting flow (strictly separated from
+#      case escalation, per the client's spec) ------------------------------
+
+def _portal_thread(a: Agency, create: bool = True) -> Thread | None:
+    """The provider-side support thread this agency's chat binds to."""
+    t = (Thread.query
+         .filter_by(provider_id=a.provider_id, agency=a.name)
+         .first())
+    if t is None and create:
+        t = Thread(id=f"T-{random.randint(100, 999)}",
+                   provider_id=a.provider_id, agency=a.name,
+                   agent=current_user.name, unread=0, last="")
+        db.session.add(t)
+        db.session.flush()
+    return t
+
+
+@app.route("/portal/chat")
+def portal_chat():
+    if not current_user.portal_can("chat"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+    greeted = session.get(f"portal_chat_greeted_{a.id}")
+    messages = []
+    if greeted:
+        t = _portal_thread(a, create=False)
+        if t:
+            messages = [{"id": m.id, "from": m.sender, "text": m.text, "t": m.t}
+                        for m in t.messages]
+    return render_portal(
+        "portal/chat.html", "CHAT",
+        greeted=bool(greeted), messages=messages,
+        greet_defaults={
+            "agent": current_user.name, "agency": a.name,
+            "pcc": a.pcc, "country": a.country,
+        },
+    )
+
+
+@app.route("/portal/chat/greet", methods=["POST"])
+def portal_chat_greet():
+    if not current_user.portal_can("chat"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+    agent = (request.form.get("agent") or current_user.name).strip()
+    pcc = (request.form.get("pcc") or a.pcc).strip().upper()
+    country = (request.form.get("country") or a.country).strip().upper()
+    session[f"portal_chat_greeted_{a.id}"] = {"agent": agent, "pcc": pcc, "country": country}
+    t = _portal_thread(a)
+    m = Message(thread_id=t.id, sender="AGENT",
+                text=f"Chat opened · {agent} · {a.name} · PCC {pcc} · {country}",
+                t=datetime.utcnow().strftime("%H:%M"))
+    db.session.add(m)
+    t.unread = (t.unread or 0) + 1
+    t.last = m.text
+    db.session.commit()
+    return redirect(url_for("portal_chat"))
+
+
+@app.route("/portal/chat/send", methods=["POST"])
+def portal_chat_send():
+    if not current_user.portal_can("chat"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+    text = (request.form.get("text") or "").strip()
+    if text:
+        t = _portal_thread(a)
+        m = Message(thread_id=t.id, sender="AGENT", text=text[:500],
+                    t=datetime.utcnow().strftime("%H:%M"))
+        db.session.add(m)
+        t.unread = (t.unread or 0) + 1
+        t.last = text[:255]
+        db.session.commit()
+    return redirect(url_for("portal_chat"))
+
+
+@app.route("/portal/chat.json")
+def portal_chat_json():
+    """Light polling endpoint so helpdesk replies appear without a reload."""
+    if not current_user.portal_can("chat"):
+        return jsonify({"messages": []}), 403
+    a = current_agency()
+    after = request.args.get("after", type=int, default=0)
+    t = _portal_thread(a, create=False)
+    msgs = []
+    if t:
+        msgs = [{"id": m.id, "from": m.sender, "text": m.text, "t": m.t}
+                for m in t.messages if m.id > after]
+    return jsonify({"messages": msgs})
+
+
+# ---- Portal: case escalation module (formal, typed, tier-routed) ----------
+
+@app.route("/portal/escalate", methods=["GET", "POST"])
+def portal_escalate():
+    if not current_user.portal_can("escalate"):
+        return render_template("auth/403.html"), 403
+    a = current_agency()
+
+    if request.method == "POST":
+        subject = (request.form.get("subject") or "").strip()
+        if not subject:
+            flash("A subject is required.", "error")
+            return redirect(url_for("portal_escalate"))
+        category = request.form.get("category") or "GENERAL"
+        if category not in ESCALATION_TIERS:
+            category = "GENERAL"
+        priority = request.form.get("priority") or "MED"
+        new_id = f"ESC-{random.randint(9000, 9999)}"
+        e = Escalation(
+            id=new_id,
+            provider_id=a.provider_id,
+            agency=a.name,
+            pnr=(request.form.get("pnr") or "—").upper()[:20],
+            subject=subject[:255],
+            level="L1",
+            category=category,
+            priority=priority if priority in {"HIGH", "MED", "LOW"} else "MED",
+            opened="just now",
+            status="OPEN",
+            sla="24 hr left",
+        )
+        e.sla_due_at = datetime.utcnow() + timedelta(hours=4 if priority == "HIGH" else 24)
+        db.session.add(e)
+        write_portal_audit("PORTAL_ESCALATION_CREATE", "escalation", new_id,
+                           note=f"{category} · {priority} · {subject[:60]}")
+        db.session.commit()
+        flash(f"Case {new_id} filed — routed to {ESCALATION_TIERS[category]}.", "success")
+        return redirect(url_for("portal_escalate"))
+
+    own = (Escalation.query
+           .filter_by(provider_id=a.provider_id, agency=a.name)
+           .order_by(Escalation.created_at.desc()).all())
+    return render_portal(
+        "portal/escalate.html", "ESCALATE",
+        cases=[escalation_to_dict(e) for e in own],
+        tiers=ESCALATION_TIERS,
+    )
+
+
 # --- Routes: provider dashboard -------------------------------------------
 
 @app.route("/provider")
@@ -1295,15 +1498,12 @@ def provider_dashboard():
         "airline": "SA",
         "window": "24h",
     }
+    # Broadcast engine (Batch 4): the feed is now DB-backed — posted once
+    # here, mirrored instantly on every Agency Portal + email push.
     industry_feed = [
-        {"source": "IATA", "time": "2h ago", "tag": "policy",
-         "title": "New API/PNRGOV passport data mandate for ZW→ZA effective 01 Sep 2026."},
-        {"source": "ATPCO", "time": "5h ago", "tag": "fares",
-         "title": "Category 5 advance-purchase rules refiled for several ET economy fares."},
-        {"source": "Emirates", "time": "yesterday", "tag": "baggage",
-         "title": "EK economy piece-concept baggage updated on East Africa routes."},
-        {"source": "Travelport", "time": "yesterday", "tag": "gds",
-         "title": "Smartpoint 8.5 hotfix resolves DOCS SSR formatting on 1G."},
+        {"id": b.id, "source": b.source, "time": humanize(b.created_at),
+         "tag": b.tag, "title": b.title, "kind": b.kind}
+        for b in (tenant_q(Broadcast).order_by(Broadcast.created_at.desc()).limit(8).all())
     ]
     return render_provider(
         "provider/dashboard.html",

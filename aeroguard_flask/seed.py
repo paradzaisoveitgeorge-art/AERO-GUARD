@@ -15,6 +15,7 @@ from models import (
     User,
     Agency,
     AgencyMember,
+    Broadcast,
     Escalation,
     Thread,
     Message,
@@ -36,6 +37,7 @@ def _wipe() -> None:
     AuditLog.query.delete()
     TicketIssue.query.delete()
     AgencyMember.query.delete()
+    Broadcast.query.delete()
     User.query.delete()
     Agency.query.delete()
     Provider.query.delete()
@@ -193,19 +195,37 @@ def seed_all() -> None:
 
     # --- Escalations ------------------------------------------------------
     esc_specs = [
-        # id, prov, agency, pnr, subject, level, priority, status, opened (ago), sla_in
-        ("ESC-7781", "PRV-AG",  "Skylink Travel",   "X7K2QP", "PCC emulation failing — auth token expired", "L2",     "HIGH", "PENDING", timedelta(minutes=12), timedelta(minutes=48)),
-        ("ESC-7780", "PRV-SKY", "Voyage Africa",    "RR81LM", "ADM dispute QR/2510 — needs evidence pack",   "VENDOR", "HIGH", "OPEN",    timedelta(hours=1),    timedelta(hours=3)),
-        ("ESC-7779", "PRV-HZ",  "BlueSky Holidays", "—",      "Onboarding: SSO not redirecting",            "L1",     "MED",  "OPEN",    timedelta(hours=3),    timedelta(hours=21)),
+        # id, prov, agency, pnr, subject, level, category, priority, status, opened (ago), sla_in
+        ("ESC-7781", "PRV-AG",  "Skylink Travel",   "X7K2QP", "PCC emulation failing — auth token expired", "L2",     "TECHNICAL", "HIGH", "PENDING", timedelta(minutes=12), timedelta(minutes=48)),
+        ("ESC-7780", "PRV-SKY", "Voyage Africa",    "RR81LM", "ADM dispute QR/2510 — needs evidence pack",   "VENDOR", "FINANCIAL", "HIGH", "OPEN",    timedelta(hours=1),    timedelta(hours=3)),
+        ("ESC-7779", "PRV-HZ",  "BlueSky Holidays", "—",      "Onboarding: SSO not redirecting",            "L1",     "GENERAL",   "MED",  "OPEN",    timedelta(hours=3),    timedelta(hours=21)),
     ]
     escalations = []
-    for eid, pid, agency, pnr, subject, level, priority, status, opened_delta, sla_delta in esc_specs:
+    for eid, pid, agency, pnr, subject, level, category, priority, status, opened_delta, sla_delta in esc_specs:
         e = Escalation(id=eid, provider_id=pid, agency=agency, pnr=pnr, subject=subject,
-                       level=level, priority=priority, status=status, opened="", sla="")
+                       level=level, category=category, priority=priority, status=status,
+                       opened="", sla="")
         e.created_at = e.updated_at = now - opened_delta
         e.sla_due_at = now + sla_delta
         escalations.append(e)
     db.session.add_all(escalations)
+
+    # --- Broadcasts (single-source announcement engine) --------------------
+    bc_specs = [
+        # provider, kind, source, tag, title, ago
+        ("PRV-AG", "PROMO",       "AERO-GUARD", "promo",   "Q3 loyalty promo: agencies above 95% compliance earn a service-fee rebate.", timedelta(hours=4)),
+        ("PRV-AG", "INDUSTRY",    "IATA",       "policy",  "New API/PNRGOV passport data mandate for ZW→ZA effective 01 Sep 2026.",     timedelta(hours=2)),
+        ("PRV-AG", "INDUSTRY",    "ATPCO",      "fares",   "Category 5 advance-purchase rules refiled for several ET economy fares.",   timedelta(hours=5)),
+        ("PRV-AG", "INDUSTRY",    "Emirates",   "baggage", "EK economy piece-concept baggage updated on East Africa routes.",           timedelta(days=1)),
+        ("PRV-AG", "MAINTENANCE", "AERO-GUARD", "maint",   "Scheduled maintenance Sun 01:00–03:00 CAT — #AG validation briefly offline.", timedelta(days=1, hours=6)),
+        ("PRV-AG", "INDUSTRY",    "Travelport", "gds",     "Smartpoint 8.5 hotfix resolves DOCS SSR formatting on 1G.",                 timedelta(days=1, hours=9)),
+        ("PRV-SKY", "INDUSTRY",   "IATA",       "policy",  "BSP ZA settlement calendar updated for the September period.",              timedelta(hours=7)),
+    ]
+    for pid, kind, source, tag, title, delta in bc_specs:
+        b = Broadcast(provider_id=pid, kind=kind, source=source, tag=tag,
+                      title=title, author="Soviet Moyo" if pid == "PRV-AG" else "SkyOps Ops")
+        b.created_at = now - delta
+        db.session.add(b)
 
     # --- Threads + Messages ----------------------------------------------
     t91 = Thread(id="T-91", provider_id="PRV-AG",  agency="Skylink Travel", agent="Rumbi",  unread=2, last="Need help on a DOCS SSR reject")

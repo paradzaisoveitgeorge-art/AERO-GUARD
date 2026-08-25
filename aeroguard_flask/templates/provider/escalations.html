@@ -26,6 +26,7 @@
         <div class="esc-subject">{{ e.subject }}</div>
         <div class="esc-tags">
           <span class="priority-badge {{ e.priority }}">{{ e.priority }}</span>
+          <span class="chip" title="Multi-tier routing queue">{{ e.tier_label }}</span>
           <span class="chip">Current: {{ e.level }}</span>
           <span class="status-badge {{ e.status }}">{{ e.status }}</span>
         </div>

@@ -1,0 +1,80 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Escalate a case &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Case Escalation</h1>
+    <p class="page-header__subtitle">Formal, tracked resolution — routed by type to the right AERO-GUARD tier</p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('portal_chat') }}">Quick question? Live chat &rarr;</a>
+</div>
+
+<div class="portal-grid">
+  <div class="card portal-grid__side" style="align-self:start;">
+    <div class="card__header">
+      <div class="card__title">File a new case</div>
+      <div class="card__subtitle">Financial &rarr; Tier 2 &middot; Technical &rarr; Tier 3</div>
+    </div>
+    <form method="post" action="{{ url_for('portal_escalate') }}" class="form-stack" style="padding:16px;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="field">
+        <label>Subject *</label>
+        <input name="subject" required placeholder="e.g. ADM QR/2510 dispute — evidence attached" />
+      </div>
+      <div class="field">
+        <label>PNR (optional)</label>
+        <input name="pnr" placeholder="e.g. X7K2QP" />
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Type *</label>
+          <select name="category">
+            <option value="GENERAL">General support</option>
+            <option value="FINANCIAL">Financial (ADM / BSP / refunds)</option>
+            <option value="TECHNICAL">Technical (system / plugin)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Priority *</label>
+          <select name="priority">
+            <option value="HIGH">High</option>
+            <option value="MED" selected>Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">File case</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card portal-grid__main">
+    <div class="card__header">
+      <div class="card__title">Your cases</div>
+      <div class="card__subtitle">{{ cases | length }} filed &middot; tracked by the AERO-GUARD helpdesk</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Case</th><th>Subject</th><th>Queue</th><th>Priority</th><th>Status</th><th>SLA</th></tr>
+      </thead>
+      <tbody>
+        {% for c in cases %}
+        <tr>
+          <td style="font-family:var(--font-mono); font-size:12px; white-space:nowrap;">{{ c.id }}<div class="cell-id">{{ c.opened }}</div></td>
+          <td style="font-size:13px;">{{ c.subject }}{% if c.pnr and c.pnr != "—" %}<div class="cell-id">PNR {{ c.pnr }}</div>{% endif %}</td>
+          <td style="white-space:nowrap; font-size:12px;">{{ c.tier_label }}</td>
+          <td><span class="tier-badge {{ 'CUSTOM' if c.priority == 'HIGH' else ('GOLD' if c.priority == 'MED' else 'STANDARD') }}">{{ c.priority }}</span></td>
+          <td><span class="tier-badge {{ 'STANDARD' if c.status == 'RESOLVED' else 'PLATINUM' }}">{{ c.status }}</span></td>
+          <td style="font-size:12px; color:var(--slate-400); white-space:nowrap;">{{ c.sla }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--slate-400);">No cases yet — file one on the left.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

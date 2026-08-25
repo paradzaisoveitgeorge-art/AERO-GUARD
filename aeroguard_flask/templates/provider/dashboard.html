@@ -133,9 +133,27 @@
 
 <div class="card">
   <div class="card__header">
-    <div class="card__title">Industry News &amp; Alerts</div>
-    <div class="card__subtitle">IATA &middot; ATPCO &middot; Airlines &middot; GDS</div>
+    <div class="card__title">Industry News &amp; Alerts &middot; Broadcast Engine</div>
+    <div class="card__subtitle">Post once &mdash; instantly on this feed, every Agency Portal, and an email push</div>
   </div>
+
+  {% if current_user.role == "ADMIN" %}
+  <form method="post" action="{{ url_for('provider_broadcast_new') }}" class="broadcast-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <select name="kind" title="Broadcast type">
+      <option value="INDUSTRY">Industry</option>
+      <option value="MAINTENANCE">Maintenance</option>
+      <option value="PROMO">Promo</option>
+    </select>
+    <input name="source" placeholder="Source (e.g. IATA)" maxlength="40" style="max-width:130px;" />
+    <select name="tag" title="Feed tag">
+      {% for t in ["policy", "fares", "baggage", "gds"] %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+    </select>
+    <input name="title" placeholder="Announcement text — visible to every agency portal&hellip;" required maxlength="255" style="flex:1;" />
+    <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Broadcast</button>
+  </form>
+  {% endif %}
+
   <ul class="feed-list">
     {% for f in industry_feed %}
     <li class="feed-item">
@@ -143,9 +161,18 @@
         <span class="feed-item__source">{{ f.source }}</span>
         <span class="feed-item__tag {{ f.tag }}">{{ f.tag }}</span>
         <span class="feed-item__time">{{ f.time }}</span>
+        {% if current_user.role == "ADMIN" %}
+        <form method="post" action="{{ url_for('provider_broadcast_delete', bid=f.id) }}" style="margin-left:auto;"
+              onsubmit="return confirm('Remove this broadcast from all feeds?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="icon-btn red" title="Remove from all feeds">&times;</button>
+        </form>
+        {% endif %}
       </div>
       <div class="feed-item__title">{{ f.title }}</div>
     </li>
+    {% else %}
+    <li class="feed-item"><div class="feed-item__title" style="color:var(--slate-400);">No broadcasts yet — post the first one above.</div></li>
     {% endfor %}
   </ul>
 </div>

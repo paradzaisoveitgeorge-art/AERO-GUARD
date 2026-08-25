@@ -1,0 +1,109 @@
+{% extends "portal/base_portal.html" %}
+{% block title %}Live chat &middot; {{ agency.name }} &middot; AERO-GUARD{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-header__title">Live Chat — AERO-GUARD Reservations</h1>
+    <p class="page-header__subtitle">Real-time assistance &middot; strictly separated from formal case escalation</p>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('portal_escalate') }}">Formal case? Escalate instead &rarr;</a>
+</div>
+
+<div class="card portal-chat-disclaimer" style="margin-bottom:16px;">
+  <div style="padding:12px 16px; font-size:12px; line-height:1.6; color:var(--slate-400);">
+    <b style="color:var(--slate-300, #cbd5e1);">Before you chat — scope &amp; legal disclaimer.</b>
+    Permitted topics: AERO-GUARD system inquiries and general airline best practices.
+    <b>Not handled here:</b> GDS-specific technical questions (contact your GDS helpdesk), and
+    <b>no financial refunds, waiver approvals or ADM dispute credits</b> can be processed or
+    guaranteed via chat — those must follow <a href="{{ url_for('portal_escalate') }}">formal case escalation</a>.
+    AERO-GUARD cannot speak or give definitive go-aheads on behalf of any airline unless explicitly authorised.
+  </div>
+</div>
+
+{% if not greeted %}
+<div class="card" style="max-width:520px;">
+  <div class="card__header">
+    <div class="card__title">Start your chat</div>
+    <div class="card__subtitle">Greeting &amp; identification — helps our reservations team route you instantly</div>
+  </div>
+  <form method="post" action="{{ url_for('portal_chat_greet') }}" class="form-stack" style="padding:16px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="field">
+      <label>1 &middot; Agent name *</label>
+      <input name="agent" required value="{{ greet_defaults.agent }}" />
+    </div>
+    <div class="field">
+      <label>2 &middot; Agency name</label>
+      <input value="{{ greet_defaults.agency }}" disabled />
+    </div>
+    <div class="form-row-2">
+      <div class="field">
+        <label>3 &middot; Pseudo City Code (PCC) *</label>
+        <input name="pcc" required value="{{ greet_defaults.pcc }}" />
+      </div>
+      <div class="field">
+        <label>4 &middot; Country *</label>
+        <input name="country" required value="{{ greet_defaults.country }}" />
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Start chat</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="card">
+  <div class="card__header">
+    <div class="card__title">AERO-GUARD Reservations</div>
+    <div class="card__subtitle">Connected &middot; replies from the helpdesk appear automatically</div>
+  </div>
+  <div id="chat-box" class="portal-chat">
+    {% for m in messages %}
+    <div class="portal-chat__msg {{ 'mine' if m.from == 'AGENT' else 'ops' }}" data-mid="{{ m.id }}">
+      <div class="portal-chat__bubble">{{ m.text }}</div>
+      <div class="portal-chat__meta">{{ "You" if m.from == "AGENT" else "AERO-GUARD" }} &middot; {{ m.t }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <form method="post" action="{{ url_for('portal_chat_send') }}" class="portal-chat__form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input name="text" autocomplete="off" placeholder="Type a message&hellip; (no refund/waiver processing via chat)" required maxlength="500" />
+    <button type="submit" class="btn btn-primary">Send</button>
+  </form>
+</div>
+
+<script>
+// Poll for helpdesk replies so the conversation feels live without websockets.
+(function () {
+  const box = document.getElementById("chat-box");
+  if (box) box.scrollTop = box.scrollHeight;
+  let last = 0;
+  document.querySelectorAll("[data-mid]").forEach((el) => { last = Math.max(last, +el.dataset.mid); });
+  setInterval(async () => {
+    try {
+      const r = await fetch("{{ url_for('portal_chat_json') }}?after=" + last);
+      if (!r.ok) return;
+      const j = await r.json();
+      j.messages.forEach((m) => {
+        last = Math.max(last, m.id);
+        const wrap = document.createElement("div");
+        wrap.className = "portal-chat__msg " + (m.from === "AGENT" ? "mine" : "ops");
+        wrap.dataset.mid = m.id;
+        const b = document.createElement("div");
+        b.className = "portal-chat__bubble";
+        b.textContent = m.text;
+        const meta = document.createElement("div");
+        meta.className = "portal-chat__meta";
+        meta.textContent = (m.from === "AGENT" ? "You" : "AERO-GUARD") + " · " + m.t;
+        wrap.append(b, meta);
+        box.appendChild(wrap);
+        box.scrollTop = box.scrollHeight;
+      });
+    } catch (e) { /* offline — keep polling */ }
+  }, 5000);
+})();
+</script>
+{% endif %}
+
+{% endblock %}

@@ -47,21 +47,21 @@ demo Batches 1–3 are not rebuilt.
 | AP-4 | ✅ 2026-08-25 | My Profile — sub-user CRUD | Add / remove / reset-password / deactivate (instant revoke), hard-capped at 3 — 4th add rejected with flash |
 | AP-5 | ✅ 2026-08-25 | Permission matrix | Checkbox matrix per sub-user (reports / visa / chat / escalate); server-enforced — sub-user without `reports` gets 403 on the reports page and Excel export |
 | AP-6 | ✅ 2026-08-25 | Issuance reports + Excel export | Tickets by airline / date / route / amount with override + ADM columns; real **.xlsx** named `{Agency}_Issuance_Report_{YYYY-MM-DD}.xlsx` |
-| AP-7 | ⬜ | ADM exposure report | ADMs incurred specifically from "Continue with PNR" overrides, with the recorded justification codes |
-| AP-8 | ⬜ | Ignored-alerts audit | Portal view of bypassed compliance alerts (synced with provider-side audit) |
-| AP-9 | ⬜ | ROI / savings dashboard | Total money saved by adhering to AERO-GUARD rules |
+| AP-7 | ✅ 2026-08-25 | ADM exposure report | Delivered inside the Reports page: per-ticket OVERRIDE badges with justification tooltips, ADM-incurred KPI + Excel columns |
+| AP-8 | ✅ 2026-08-25 | Ignored-alerts audit | Delivered inside the Reports page: "Ignored alerts" KPI + per-row badges, synced to the provider audit trail |
+| AP-9 | ✅ 2026-08-25 | ROI / savings dashboard | Delivered inside the Reports page: "ROI — savings realised" KPI + per-ticket SAVED badges |
 | AP-10 | ✅ 2026-08-25 | Visa tool + dashboard widget | Quick-access widget on the portal dashboard, sharing one visa dataset with the #AG Smart Button (`visa-rules.js`) |
-| AP-11 | ⬜ | Live chat w/ greeting flow | Chat prompts for Agent Name, Agency, PCC, Country; mandatory legal disclaimer at start; scope limits (no GDS tech questions, no airline representation, no refunds via chat) |
-| AP-12 | ⬜ | Case escalation module | Separate from chat; structured ticket with priority (High/Med/Low) + type (Financial/Technical) and status tracking |
-| AP-13 | ⬜ | Announcements feed | Receives provider broadcasts: promos, vouchers, maintenance, industry updates |
+| AP-11 | ✅ 2026-08-25 | Live chat w/ greeting flow | Greeting form (Agent Name, Agency, PCC, Country) before first chat; standing legal disclaimer + scope limits on the page; binds to the provider support thread with 5s reply polling |
+| AP-12 | ✅ 2026-08-25 | Case escalation module | Separate page from chat; ticket with priority (High/Med/Low) + type (General/Financial/Technical), tier-routed, own-cases tracking table |
+| AP-13 | ✅ 2026-08-25 | Announcements feed | Portal dashboard feed is DB-backed by the provider broadcast engine (promos, maintenance, industry) |
 | AP-14 | ✅ 2026-08-25 | Airline policies & IATA page | Portal section with airline policies (ADM-impact rules), IATA guidelines and the reference-document library |
 
 ## D. Provider Helpdesk — intelligence & comms
 
 | # | Status | Update | Detail |
 |---|--------|--------|--------|
-| PH-5 | ⬜ | Broadcast engine | Provider authors a notice once → global announcements table → banners on Provider dashboard **and** Agency Portal + (simulated) email push |
-| PH-6 | 🟡 | Multi-tier escalation routing | Tier 1 general / Tier 2 financial / Tier 3 technical; tickets tagged by type and routed to the right queue (today: L1/L2/VENDOR levels only) |
+| PH-5 | ✅ 2026-08-25 | Broadcast engine | Admin posts once on the provider dashboard → broadcasts table → instantly on the provider feed **and** every Agency Portal + email push to agency admins (logged when SMTP off); per-item delete |
+| PH-6 | ✅ 2026-08-25 | Multi-tier escalation routing | Escalations carry a category (General→Tier 1, Financial→Tier 2, Technical→Tier 3) shown as queue chips on the provider board; portal filings route by type |
 | PH-7 | ⬜ | Agency performance & risk dashboard | Top vs struggling agencies, ADM-by-airline analysis, and a "system-wide vs single-agency" flag on error trends |
 | PH-8 | ⬜ | Predictive bypass alerts | Detect a sub-user repeatedly overriding the same warning; alert provider helpdesk + agency admin before an ADM lands |
 | PH-9 | ✅ | ADM spike alert | Exists (system-wide spike banner); verify criteria = same airline/route across multiple agencies within 24 h, and drive it from real override data |
@@ -71,7 +71,7 @@ demo Batches 1–3 are not rebuilt.
 
 | # | Status | Update | Detail |
 |---|--------|--------|--------|
-| XC-1 | ⬜ | Legal pages + chat disclaimer | ToS §12 ADM-liability disclaimer, SaaS seat-cap & named-user clause, Data Privacy & Tenancy Isolation — footer links on both portals; disclaimer shown at chat start |
+| XC-1 | 🟡 | Legal pages + chat disclaimer | Chat-start disclaimer + standing portal-footer disclaimer done (no refunds via chat, no airline representation); standalone ToS / SaaS / Privacy pages remain for Batch 5 |
 | XC-2 | ⬜ | Dark / Light mode toggle | Requested for late-shift agents; app is currently dark-only |
 | XC-3 | ⬜ | Public JSON API per spec | `POST /api/v1/compliance/validate` and `POST /api/v1/compliance/escalate` implementing the documented request/response payloads (+ ticket status URL) |
 | XC-4 | ✅ 2026-08-25 | Responsive KPI cards | Portal pulse cards stack 4→2→1 columns on smaller screens; chart and 70/30 grid collapse full-width |

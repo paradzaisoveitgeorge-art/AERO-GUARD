@@ -208,6 +208,8 @@ class Escalation(db.Model):
     pnr = db.Column(db.String(20))
     subject = db.Column(db.String(255))
     level = db.Column(db.String(20), default="L1")
+    # Multi-tier routing: GENERAL → Tier 1, FINANCIAL → Tier 2, TECHNICAL → Tier 3.
+    category = db.Column(db.String(20), default="GENERAL")
     priority = db.Column(db.String(10), default="MED")
     opened = db.Column(db.String(40), default="just now")
     status = db.Column(db.String(20), default="OPEN")
@@ -294,6 +296,25 @@ class PendingIssue(db.Model):
     summary = db.Column(db.String(255))
     age = db.Column(db.String(20))
     priority = db.Column(db.String(10))
+
+
+class Broadcast(db.Model):
+    """A provider-authored announcement — the single-source broadcast engine.
+
+    Posted once on the Provider Helpdesk; instantly visible on the provider
+    dashboard's Industry News feed AND every Agency Portal's announcements
+    feed, with an email push to agency admins (simulated when SMTP is off).
+    """
+    __tablename__ = "broadcasts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider_id = db.Column(db.String(20), db.ForeignKey("providers.id"), nullable=False, index=True)
+    kind = db.Column(db.String(20), default="INDUSTRY")   # INDUSTRY | MAINTENANCE | PROMO
+    source = db.Column(db.String(40), default="AERO-GUARD")
+    tag = db.Column(db.String(20), default="policy")      # policy|fares|baggage|gds|promo|maint
+    title = db.Column(db.String(255), nullable=False)
+    author = db.Column(db.String(120), default="")
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
 
 class TicketIssue(db.Model):

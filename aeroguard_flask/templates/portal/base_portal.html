@@ -22,7 +22,15 @@
 
       <ul class="topnav__links">
         <li><a href="{{ url_for('portal_dashboard') }}" class="topnav__link {{ 'active' if active_nav == 'DASHBOARD' else '' }}">Dashboard</a></li>
+        {% if current_user.portal_can('reports') %}
         <li><a href="{{ url_for('portal_reports') }}" class="topnav__link {{ 'active' if active_nav == 'REPORTS' else '' }}">Reports</a></li>
+        {% endif %}
+        {% if current_user.portal_can('chat') %}
+        <li><a href="{{ url_for('portal_chat') }}" class="topnav__link {{ 'active' if active_nav == 'CHAT' else '' }}">Live Chat</a></li>
+        {% endif %}
+        {% if current_user.portal_can('escalate') %}
+        <li><a href="{{ url_for('portal_escalate') }}" class="topnav__link {{ 'active' if active_nav == 'ESCALATE' else '' }}">Escalate Case</a></li>
+        {% endif %}
         <li><a href="{{ url_for('portal_policies') }}" class="topnav__link {{ 'active' if active_nav == 'POLICIES' else '' }}">Airline Policies &amp; IATA</a></li>
         <li><a href="{{ url_for('portal_profile') }}" class="topnav__link {{ 'active' if active_nav == 'PROFILE' else '' }}">My Profile</a></li>
       </ul>
