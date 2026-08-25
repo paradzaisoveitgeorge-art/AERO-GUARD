@@ -114,7 +114,7 @@ Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 
 db.init_app(app)
 Migrate(app, db)
-CSRFProtect(app)
+csrf = CSRFProtect(app)
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -161,7 +161,8 @@ def inject_user():
 
 # Public endpoints that never require login. Everything else under
 # /provider/* and / is locked down by the before_request guard below.
-PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "static"}
+PUBLIC_ENDPOINTS = {"login", "login_mfa", "login_mfa_cancel", "logout", "forgot", "reset_password", "healthz", "legal", "static",
+                    "api_compliance_validate", "api_compliance_escalate", "api_ticket_status"}
 
 
 @app.errorhandler(403)
@@ -825,11 +826,19 @@ def reset_password(token: str):
 @app.route("/")
 @login_required
 def smartpoint_demo():
-    if current_user.is_provider_staff():
+    # Provider staff may open the module replica for troubleshooting
+    # (Products → Smart Button replica); otherwise they go to the console.
+    is_replica = request.args.get("replica") == "1"
+    if current_user.is_provider_staff() and not is_replica:
         return redirect(url_for("provider_dashboard"))
     if current_user.is_agency_user():
         return redirect(url_for("portal_dashboard"))
-    return render_template("smartpoint.html", tutorials=TUTORIALS)
+    # The demo terminal is bound to Skylink Travel — its branding toggle
+    # decides how the itinerary trust badge renders (SB-10).
+    demo_agency = Agency.query.filter_by(name=DEMO_TERMINAL["agency"]).first()
+    badge_style = (demo_agency.badge_style if demo_agency and demo_agency.badge_style else "PROMINENT")
+    return render_template("smartpoint.html", tutorials=TUTORIALS,
+                           badge_style=badge_style, is_replica=is_replica)
 
 
 # The demo consultant terminal is bound to Skylink Travel under AERO-GUARD
@@ -1245,6 +1254,21 @@ def portal_subuser_reset(uid):
     return redirect(url_for("portal_profile"))
 
 
+@app.route("/portal/profile/branding", methods=["POST"])
+@require_role("AGENCY_ADMIN")
+def portal_branding():
+    """SB-10: choose how the AERO-GUARD trust badge renders on itineraries."""
+    a = current_agency()
+    style = request.form.get("badge_style")
+    if style not in {"PROMINENT", "SUBTLE"}:
+        style = "PROMINENT"
+    a.badge_style = style
+    write_portal_audit("PORTAL_BRANDING_SET", "agency", a.id, note=style)
+    db.session.commit()
+    flash(f"Itinerary trust badge set to {style.lower()} — applies to every #AG-generated document.", "success")
+    return redirect(url_for("portal_profile"))
+
+
 # ---- Portal: airline policies & IATA guidelines (kept current) -------------
 
 AIRLINE_POLICY_FEED = [
@@ -1505,10 +1529,23 @@ def provider_dashboard():
          "tag": b.tag, "title": b.title, "kind": b.kind}
         for b in (tenant_q(Broadcast).order_by(Broadcast.created_at.desc()).limit(8).all())
     ]
+
+    # Predictive bypass alerts (Batch 5, PH-8): flag any user who repeatedly
+    # issued against warnings so the helpdesk can intervene before an ADM.
+    bypass_counts: dict[str, int] = {}
+    own_ids = {a.id for a in own_agencies}
+    for t in TicketIssue.query.filter_by(provider_id=current_provider_id(), overridden=True).all():
+        if t.agency_id in own_ids:
+            bypass_counts[t.agent] = bypass_counts.get(t.agent, 0) + 1
+    bypass_alerts = sorted(
+        ({"agent": agent, "count": n} for agent, n in bypass_counts.items() if n >= 3),
+        key=lambda r: -r["count"],
+    )
     return render_provider(
         "provider/dashboard.html",
         "DASHBOARD",
         adm_spike=adm_spike,
+        bypass_alerts=bypass_alerts,
         industry_feed=industry_feed,
         adms_prevented=adms_prevented,
         dollar_saved=adms_prevented * 350,
@@ -2127,11 +2164,50 @@ def provider_audits():
     agencies = all_agencies()
     rows = _audit_rows(filter_agency, sort_health)
 
+    # --- Risk intelligence (Batch 5, PH-7) — computed from real issuance ---
+    tickets = TicketIssue.query.filter_by(provider_id=current_provider_id()).all()
+    agency_names_by_id = {a.id: a.name for a in agencies}
+
+    # ADM & loss mitigation by airline; SYSTEM-WIDE when overrides span
+    # more than one agency (vs an isolated single-agency trend).
+    by_airline: dict[str, dict] = {}
+    for t in tickets:
+        d = by_airline.setdefault(t.airline, {"airline": t.airline, "tickets": 0, "overrides": 0,
+                                              "adm": 0.0, "saved": 0.0, "agencies": set()})
+        d["tickets"] += 1
+        d["saved"] += t.saved_amount or 0
+        if t.overridden:
+            d["overrides"] += 1
+            d["adm"] += t.adm_amount or 0
+            d["agencies"].add(t.agency_id)
+    airline_risk = sorted(
+        ({**d, "agencies": len(d["agencies"]),
+          "scope": "SYSTEM-WIDE" if len(d["agencies"]) > 1 else ("SINGLE-AGENCY" if d["agencies"] else "—")}
+         for d in by_airline.values()),
+        key=lambda r: (-r["adm"], -r["overrides"]),
+    )
+
+    # Top vs struggling agencies by compliance rate.
+    by_agency: dict[str, dict] = {}
+    for t in tickets:
+        d = by_agency.setdefault(t.agency_id, {"agency": agency_names_by_id.get(t.agency_id, t.agency_id),
+                                               "tickets": 0, "overrides": 0, "adm": 0.0})
+        d["tickets"] += 1
+        if t.overridden:
+            d["overrides"] += 1
+            d["adm"] += t.adm_amount or 0
+    perf = []
+    for d in by_agency.values():
+        pct = round(100.0 * (1 - d["overrides"] / d["tickets"]), 1) if d["tickets"] else 100.0
+        perf.append({**d, "compliance": pct, "light": _traffic_light(pct)})
+    perf.sort(key=lambda r: -r["compliance"])
+
     return render_provider(
         "provider/audits.html", "AUDITS",
         range=range_, filter_agency=filter_agency, sort_health=sort_health,
         agency_names=[a.name for a in agencies],
         rows=rows, reason_dist=REASON_DIST, drill=drill, drilldown_rules=DRILLDOWN_RULES,
+        airline_risk=airline_risk, agency_perf=perf,
     )
 
 
@@ -2333,6 +2409,148 @@ def reply_thread(thread_id):
 
 
 # --- Health check (for hosts) --------------------------------------------
+
+@app.route("/legal")
+def legal():
+    """Public legal templates: ToS liability clause, SaaS seat terms,
+    data-privacy / tenancy isolation (client updates Batch 5, XC-1)."""
+    return render_template("legal.html")
+
+
+# --- Public JSON API (client updates Batch 5, XC-3) ------------------------
+#
+# Implements the compliance API exactly as specified in the client's
+# document (pp. 3–5): PNR validation, helpdesk escalation, ticket status.
+# Auth: X-API-Key header (demo key; per-agency keys come with production).
+
+API_KEY = os.environ.get("AEROGUARD_API_KEY", "demo-key-aeroguard")
+
+
+def _api_auth_error():
+    return jsonify({"status": "ERROR", "error": "Missing or invalid X-API-Key header."}), 401
+
+
+@app.route("/api/v1/compliance/validate", methods=["POST"])
+@csrf.exempt
+def api_compliance_validate():
+    """POST /api/v1/compliance/validate — evaluate a PNR payload against
+    regulatory, airline and corporate-policy rules (spec pp. 3–4)."""
+    if request.headers.get("X-API-Key") != API_KEY:
+        return _api_auth_error()
+    p = request.get_json(silent=True) or {}
+    booking = p.get("booking_details") or {}
+    itinerary = booking.get("itinerary") or []
+    passengers = booking.get("passengers") or []
+    elements = booking.get("elements") or {}
+
+    violations = []
+    intl = any((s.get("origin") or "")[:2] != (s.get("destination") or "")[:2] for s in itinerary)
+    for pax in passengers:
+        if not pax.get("passport_number"):
+            route = "-".join(filter(None, [itinerary[0].get("origin") if itinerary else None,
+                                           itinerary[-1].get("destination") if itinerary else None]))
+            violations.append({
+                "rule_code": "SEC_PASSPORT_MISSING",
+                "severity": "CRITICAL",
+                "category": "Security / API Requirement",
+                "message": f"Passenger {pax.get('pax_id', '?')} ({pax.get('name', 'UNKNOWN')}) is missing "
+                           f"API/Passport data required for international route {route or 'N/A'}.",
+                "suggested_action": "Add APIS element using format: SR DOCS <airline> HK1-P-<nat>-<passport>-…",
+            })
+    if not elements.get("has_email"):
+        violations.append({
+            "rule_code": "POL_EMAIL_MISSING",
+            "severity": "WARNING",
+            "category": "Agency Quality Control",
+            "message": "Passenger email address (APEMAIL) is missing from the PNR.",
+            "suggested_action": "Add contact email element.",
+        })
+    if not elements.get("has_ticketing_tl"):
+        violations.append({
+            "rule_code": "TKT_TL_MISSING",
+            "severity": "WARNING",
+            "category": "Ticketing",
+            "message": "No ticketing time limit (TTL) set — carrier auto-cancellation risk.",
+            "suggested_action": "Add a TAU/TL element before end of day.",
+        })
+
+    criticals = [v for v in violations if v["severity"] == "CRITICAL"]
+    warnings_ = [v for v in violations if v["severity"] == "WARNING"]
+    # Advisories: match broadcasts whose source or title references one of
+    # the itinerary's carriers (codes or common carrier names).
+    CARRIER_NAMES = {"ET": "Ethiopian", "EK": "Emirates", "SA": "South African",
+                     "LH": "Lufthansa", "QR": "Qatar"}
+    carriers = {s.get("airline") for s in itinerary if s.get("airline")}
+    needles = {c for c in carriers} | {CARRIER_NAMES[c] for c in carriers if c in CARRIER_NAMES}
+    advisories = [
+        {"airline": b.source, "notice": b.title}
+        for b in Broadcast.query.order_by(Broadcast.created_at.desc()).limit(10).all()
+        if any(n in b.source or n in b.title for n in needles)
+    ]
+    return jsonify({
+        "status": "SUCCESS",
+        "compliance_status": "FLAGGED" if violations else "COMPLIANT",
+        "summary": {
+            "total_errors": len(criticals),
+            "total_warnings": len(warnings_),
+            "block_ticketing": bool(criticals),
+        },
+        "violations": violations,
+        "airline_advisories": advisories,
+    })
+
+
+@app.route("/api/v1/compliance/escalate", methods=["POST"])
+@csrf.exempt
+def api_compliance_escalate():
+    """POST /api/v1/compliance/escalate — waiver/override routed to the
+    helpdesk queue (spec p. 5)."""
+    if request.headers.get("X-API-Key") != API_KEY:
+        return _api_auth_error()
+    p = request.get_json(silent=True) or {}
+    new_id = f"ESC-{random.randint(8000, 8999)}"
+    e = Escalation(
+        id=new_id,
+        provider_id=DEMO_TERMINAL["provider_id"],
+        agency=p.get("agency_id") or DEMO_TERMINAL["agency"],
+        pnr=(p.get("pnr_locator") or "—").upper()[:20],
+        subject=f"[API] {(p.get('reason_for_escalation') or 'Escalation via API')[:200]}",
+        level="L1",
+        category="GENERAL",
+        priority="HIGH",
+        opened="just now",
+        status="OPEN",
+        sla="4 hr left",
+    )
+    e.sla_due_at = datetime.utcnow() + timedelta(hours=4)
+    db.session.add(e)
+    db.session.commit()
+    return jsonify({
+        "status": "QUEUED",
+        "ticket_id": new_id,
+        "message": "Escalation logged. Helpdesk supervisor notified. Average review time: 4 minutes.",
+        "status_url": f"/api/v1/tickets/{new_id}",
+    })
+
+
+@app.route("/api/v1/tickets/<ticket_id>")
+@csrf.exempt
+def api_ticket_status(ticket_id):
+    if request.headers.get("X-API-Key") != API_KEY:
+        return _api_auth_error()
+    e = Escalation.query.get(ticket_id)
+    if e is None:
+        return jsonify({"status": "ERROR", "error": "Unknown ticket id."}), 404
+    return jsonify({
+        "ticket_id": e.id,
+        "status": e.status,
+        "priority": e.priority,
+        "queue": ESCALATION_TIERS.get(e.category or "GENERAL"),
+        "pnr": e.pnr,
+        "subject": e.subject,
+        "sla_due_at": e.sla_due_at.isoformat() + "Z" if e.sla_due_at else None,
+    })
+
 
 @app.route("/healthz")
 def healthz():

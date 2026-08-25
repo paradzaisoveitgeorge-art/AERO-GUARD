@@ -25,6 +25,9 @@
     <span>{{ m }}</span>
     {% endfor %}
     <span style="margin-left:auto; display:flex; align-items:center; gap:14px; font-size:12px; color:#475569;">
+      {% if is_replica %}
+        <span class="sp-replica-pill" title="Provider troubleshooting view — same modules the agencies use">REPLICA MODE</span>
+      {% endif %}
       {% if current_user.is_authenticated %}
         <span title="Signed in">{{ current_user.name }} &middot; {{ current_user.role }}</span>
       {% endif %}

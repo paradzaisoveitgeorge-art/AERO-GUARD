@@ -165,6 +165,8 @@ class Agency(db.Model):
     policy_level = db.Column(db.String(40), default="STANDARD")
     admin_email = db.Column(db.String(160), default="")
     region = db.Column(db.String(40), nullable=True)  # e.g. "Southern Africa"
+    # Trust-badge placement on generated itineraries: PROMINENT | SUBTLE.
+    badge_style = db.Column(db.String(12), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     deleted_at = db.Column(db.DateTime, nullable=True)  # soft delete

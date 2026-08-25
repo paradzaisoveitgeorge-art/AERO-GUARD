@@ -12,6 +12,67 @@
      title="Download the per-agency breakdown as a CSV (opens in Excel)">&#8681; Export CSV</a>
 </div>
 
+<!-- Risk intelligence (Batch 5, PH-7): computed from real issuance data -->
+<div class="portal-grid" style="margin-bottom:4px;">
+  <div class="card portal-grid__main">
+    <div class="card__header">
+      <div class="card__title">ADM &amp; loss mitigation by airline</div>
+      <div class="card__subtitle">which carriers are biting &middot; system-wide vs single-agency trends</div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Airline</th><th>Tickets</th><th>Overrides</th><th>ADM incurred</th><th>Saved</th><th>Trend scope</th></tr>
+      </thead>
+      <tbody>
+        {% for r in airline_risk %}
+        <tr>
+          <td><span class="gds-chip">{{ r.airline }}</span></td>
+          <td>{{ r.tickets }}</td>
+          <td>{{ r.overrides }}</td>
+          <td style="color: {{ 'var(--red-500)' if r.adm else 'inherit' }};">${{ "{:,.0f}".format(r.adm) }}</td>
+          <td>${{ "{:,.0f}".format(r.saved) }}</td>
+          <td>
+            {% if r.scope == "SYSTEM-WIDE" %}
+              <span class="tier-badge CUSTOM" title="Overrides span {{ r.agencies }} agencies — broadcast a warning">SYSTEM-WIDE</span>
+            {% elif r.scope == "SINGLE-AGENCY" %}
+              <span class="tier-badge STANDARD" title="Isolated to one agency — targeted coaching">SINGLE-AGENCY</span>
+            {% else %}
+              <span style="color:var(--slate-400);">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center; padding:18px; color:var(--slate-400);">No issuance data yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card portal-grid__side">
+    <div class="card__header">
+      <div class="card__title">Agency performance</div>
+      <div class="card__subtitle">top vs struggling &middot; compliance rate</div>
+    </div>
+    <table class="data-table">
+      <tbody>
+        {% for p in agency_perf %}
+        <tr>
+          <td>
+            <b>{{ p.agency }}</b>
+            <div class="cell-id">{{ p.tickets }} tickets &middot; {{ p.overrides }} overrides{% if p.adm %} &middot; ${{ "{:,.0f}".format(p.adm) }} ADM{% endif %}</div>
+          </td>
+          <td style="text-align:right;">
+            <span class="tier-badge {{ 'STANDARD' if p.light == 'green' else ('GOLD' if p.light == 'amber' else 'CUSTOM') }}">{{ p.compliance }}%</span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td style="text-align:center; padding:18px; color:var(--slate-400);">No issuance data yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <form method="get" id="audit-filters" class="range-bar">
   {% for r in ["DAY", "WEEK", "MONTH"] %}
   <button type="submit" name="range" value="{{ r }}" class="range-pill {{ 'active' if range == r else '' }}">{{ r }}</button>

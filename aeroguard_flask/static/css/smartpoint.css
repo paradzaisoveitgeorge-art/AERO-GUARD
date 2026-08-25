@@ -359,3 +359,39 @@
 .sp-violation-tier { color: #b45309; font-weight: 700; letter-spacing: .02em; }
 .sp-violation-steps { margin: 10px 0 0; padding-left: 18px; font-size: 11px; color: #52525b; line-height: 1.6; }
 .sp-violation-steps code { font-family: var(--font-mono); background: #f4f4f5; border-radius: 3px; padding: 0 4px; font-size: 10px; }
+
+/* ---------- Batch 5: itinerary branding + visa warnings ---------- */
+
+/* SB-7: airline brand marks (production swaps for licensed logo assets) */
+.airline-mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  font-size: 10px; font-weight: 800; letter-spacing: .02em; color: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / .25);
+}
+.airline-mark.ET { background: linear-gradient(135deg, #078930 45%, #fcdd09 45% 55%, #da121a 55%); }
+.airline-mark.EK { background: #d71920; }
+.airline-mark.SA { background: linear-gradient(135deg, #0b1f66 60%, #e1392d 60%); }
+.airline-mark.LH { background: #05164d; color: #f9ba00; }
+.airline-mark.QR { background: #5c0632; }
+.ag-itin-seg__carrier-name { font-size: 9px; font-weight: 600; color: #71717a; margin-left: 6px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* SB-9: transit/destination visa strip inside the itinerary document */
+.ag-itin-visa { border-top: 1px dashed #e4e4e7; padding: 8px 10px; background: #fffbeb; }
+.ag-itin-visa__title { font-size: 9.5px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+.ag-itin-visa__row { font-size: 10px; line-height: 1.5; color: #52525b; }
+.ag-itin-visa__row.required b { color: #b91c1c; }
+.ag-itin-visa__row.voa b, .ag-itin-visa__row.eta b { color: #b45309; }
+.ag-itin-visa__row.free b { color: #047857; }
+
+/* SB-10: subtle footer trust mark variant */
+.ag-itin-badge--subtle {
+  padding: 6px 10px; text-align: right; font-size: 8.5px; letter-spacing: .06em;
+  text-transform: uppercase; color: #a1a1aa; border-top: 1px solid #f4f4f5;
+}
+
+/* Replica-mode pill (provider troubleshooting view) */
+.sp-replica-pill {
+  background: #eef2ff; border: 1px solid #c7d2fe; color: #4338ca;
+  border-radius: 999px; padding: 2px 10px; font-size: 10px; font-weight: 700;
+}

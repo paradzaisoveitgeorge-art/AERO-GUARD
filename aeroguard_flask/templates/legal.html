@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal &middot; AERO-GUARD</title>
+  {% include "partials/_head_meta.html" %}
+  <script>(function(){try{if(localStorage.getItem("ag-theme")==="light")document.documentElement.classList.add("light");}catch(e){}})();</script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+<div class="app-shell app-shell--topnav">
+  <nav class="topnav">
+    <a href="{{ url_for('login') }}" class="topnav__brand">
+      <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}" alt="AERO-GUARD" class="topnav__logo-img" />
+      <div>
+        <div class="topnav__title">AERO-GUARD</div>
+        <div class="topnav__subtitle">Legal &amp; Policies</div>
+      </div>
+    </a>
+    <span style="margin-left:auto;"></span>
+    <a class="topnav__consultant" href="javascript:history.back()">&larr; Back</a>
+  </nav>
+  <div class="app-main">
+    <div class="app-content">
+      <div class="page-wrap">
+
+        <div class="page-header">
+          <div>
+            <h1 class="page-header__title">Legal &amp; Policies</h1>
+            <p class="page-header__subtitle">Terms of Service &middot; SaaS Subscription Agreement &middot; Data Privacy &amp; Tenancy Isolation</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;" id="tos">
+          <div class="card__header">
+            <div class="card__title">A &middot; Terms of Service — Limitation of Liability</div>
+            <div class="card__subtitle">Clause 12 &middot; Disclaimer of Agency ADM Liability &amp; Software Limitations</div>
+          </div>
+          <div class="legal-body">
+            <p>AERO-GUARD is a supplementary software tool designed to assist travel consultants by highlighting
+            potential rule violations within simulated or connected Global Distribution System (GDS) environments.</p>
+            <ul>
+              <li><b>No Guarantee Against Fines (ADMs).</b> The Provider does not guarantee that the use of
+              AERO-GUARD will entirely prevent Agency Debit Memos (ADMs), financial penalties, or ticketing
+              errors issued by airlines or GDS providers.</li>
+              <li><b>User Responsibility.</b> Final ticketing, fare validation, and compliance decisions rest
+              solely with the licensed Travel Agency and its authorised consultants. The Provider assumes zero
+              financial or legal liability for any fines, lost revenue, or ticketing disputes resulting from
+              system warnings, missed notifications, or software errors.</li>
+              <li><b>No Airline Representation.</b> AERO-GUARD is an independent technology platform and does
+              not speak for, act on behalf of, or represent any commercial airline or GDS consolidator.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:16px;" id="saas">
+          <div class="card__header">
+            <div class="card__title">B &middot; SaaS Subscription Agreement</div>
+            <div class="card__subtitle">Clause 3 &middot; Seat Allocation, Whitelisting, and Account Security</div>
+          </div>
+          <div class="legal-body">
+            <ul>
+              <li><b>Strict Seat Caps.</b> The Customer (Travel Agency) is granted a non-transferable right to
+              access the Software up to the pre-approved maximum "Seat Count" specified in their active
+              subscription tier.</li>
+              <li><b>Named User Mandate.</b> Access is strictly restricted to the specific individual names and
+              corporate email addresses registered during the provisioning phase. Shared credentials, group
+              logins, or unauthorised transfer of seat access to unregistered individuals constitutes a material
+              breach of this Agreement and may result in immediate suspension of the tenant account.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card" id="privacy">
+          <div class="card__header">
+            <div class="card__title">C &middot; Data Privacy &amp; Tenancy Isolation Policy</div>
+            <div class="card__subtitle">Clause 5 &middot; Data Security &amp; Multi-Tenant Isolation</div>
+          </div>
+          <div class="legal-body">
+            <p>The Provider implements robust logical data segregation to ensure that Passenger Name Records
+            (PNRs), fare calculations, financial metrics, and accounting export data belonging to the Customer
+            remain strictly isolated and inaccessible to any competing third-party travel agency utilising the
+            AERO-GUARD platform. All data transmissions are encrypted in transit and at rest.</p>
+          </div>
+        </div>
+
+        <p class="field-hint" style="margin-top:14px;">
+          Template clauses for commercial rollout — to be finalised with a legal professional before signature.
+        </p>
+
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

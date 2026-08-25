@@ -582,7 +582,45 @@ async function chatWithContext() {
   }
 }
 
+// ---------- Itinerary enrichment (SB-7/8/9) ----------
+// Per-carrier baggage concepts (SB-8). Production reads these from the
+// central rules DB; carriers differ wildly on multi-carrier itineraries.
+const BAGGAGE_RULES = {
+  ET: "2PC · 23kg each (Africa routes)",
+  EK: "2PC · 23kg each (piece concept)",
+  SA: "1PC · 23kg (regional)",
+  LH: "1PC · 23kg (Economy Light: 0PC)",
+  QR: "2PC · 30kg total",
+};
+
+function initItinerary() {
+  // SB-8: inject the validating carrier's baggage allowance per segment.
+  document.querySelectorAll(".ag-itin-seg[data-carrier]").forEach((seg) => {
+    const rule = BAGGAGE_RULES[seg.dataset.carrier];
+    const el = seg.querySelector(".ag-itin-seg__bag");
+    if (rule && el) el.textContent = rule;
+  });
+
+  // SB-9: multi-stop transit + destination visa warnings for the demo
+  // itinerary HRE → ADD (transit) → DXB, nationality ZWE. Pulled from the
+  // same dataset as the Visa tab / portal widget.
+  const box = document.getElementById("itin-visa-warnings");
+  if (!box || typeof visaRuleFor !== "function") return;
+  const nationality = "ZWE";
+  const legs = [
+    { code: "ETH", label: "Transit ADD (Addis Ababa)" },
+    { code: "ARE", label: "Destination DXB (Dubai)" },
+  ];
+  const lines = legs.map(({ code, label }) => {
+    const rule = visaRuleFor(nationality, code);
+    return `<div class="ag-itin-visa__row ${rule.status}"><b>${label}:</b> ${rule.label} — ${rule.detail}</div>`;
+  });
+  box.innerHTML = '<div class="ag-itin-visa__title">&#9888; Visa check · nationality ZWE</div>' + lines.join("");
+  box.style.display = "block";
+}
+
 // Auto-trigger a violation a few seconds in so the demo feels live, same as the source.
 setTimeout(triggerViolation, 2200);
 updateStats();
 updateEditNameState();
+initItinerary();

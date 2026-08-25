@@ -205,27 +205,39 @@
           <div class="ag-itin-doc__gds">1G</div>
         </div>
 
-        <div class="ag-itin-seg">
-          <div class="ag-itin-seg__airline"><span class="ag-itin-seg__code">ET</span></div>
+        {# SB-7: dynamic airline branding per segment — carrier-code marks
+           carry each airline's brand colours (production maps to licensed
+           logo assets). SB-8: baggage is injected per carrier by JS. #}
+        <div class="ag-itin-seg" data-carrier="ET">
+          <div class="ag-itin-seg__airline"><span class="airline-mark ET" title="Ethiopian Airlines">ET</span></div>
           <div class="ag-itin-seg__body">
-            <div class="ag-itin-seg__route">HRE &rarr; ADD</div>
-            <div class="ag-itin-seg__meta">ET 873 &middot; 15 JUL &middot; 09:20&ndash;14:05 &middot; Economy (E) &middot; 2PC</div>
+            <div class="ag-itin-seg__route">HRE &rarr; ADD <span class="ag-itin-seg__carrier-name">Ethiopian Airlines</span></div>
+            <div class="ag-itin-seg__meta">ET 873 &middot; 15 JUL &middot; 09:20&ndash;14:05 &middot; Economy (E) &middot; <span class="ag-itin-seg__bag">2PC</span></div>
           </div>
         </div>
-        <div class="ag-itin-seg">
-          <div class="ag-itin-seg__airline"><span class="ag-itin-seg__code">EK</span></div>
+        <div class="ag-itin-seg" data-carrier="EK">
+          <div class="ag-itin-seg__airline"><span class="airline-mark EK" title="Emirates">EK</span></div>
           <div class="ag-itin-seg__body">
-            <div class="ag-itin-seg__route">ADD &rarr; DXB</div>
-            <div class="ag-itin-seg__meta">EK 724 &middot; 15 JUL &middot; 16:40&ndash;22:15 &middot; Economy (E) &middot; 2PC</div>
+            <div class="ag-itin-seg__route">ADD &rarr; DXB <span class="ag-itin-seg__carrier-name">Emirates</span></div>
+            <div class="ag-itin-seg__meta">EK 724 &middot; 15 JUL &middot; 16:40&ndash;22:15 &middot; Economy (E) &middot; <span class="ag-itin-seg__bag">2PC</span></div>
           </div>
         </div>
+
+        {# SB-9: transit-visa warnings for multi-stop routes, computed from
+           the shared visa dataset. Populated by initItinerary(). #}
+        <div id="itin-visa-warnings" class="ag-itin-visa" style="display:none;"></div>
 
         <div class="ag-itin-pax">Passenger: DEMHE/PATRICK JOHN MR &middot; e-Tkt 071-2291884401</div>
 
+        {% if badge_style == "SUBTLE" %}
+        {# SB-10: agency chose the subtle footer mark via the Portal. #}
+        <div class="ag-itin-badge--subtle">Verified &amp; Secured by AERO-GUARD</div>
+        {% else %}
         <div class="ag-itin-badge">
           <img src="{{ url_for('static', filename='img/aero-guard-logo.png') }}" alt="" class="ag-itin-badge__logo" />
           Verified &amp; Secured by AERO-GUARD
         </div>
+        {% endif %}
       </div>
 
       <div class="ag-itin-share">

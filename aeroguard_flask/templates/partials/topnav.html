@@ -25,6 +25,8 @@
                class="{{ 'active' if active_nav == 'USERS' else '' }}">Manage Users</a></li>
         <li><a href="{{ url_for('provider_audits') }}"
                class="{{ 'active' if active_nav == 'AUDITS' else '' }}">AA Audit</a></li>
+        <li><a href="{{ url_for('smartpoint_demo', replica=1) }}"
+               title="Internal replica of the agency-facing Smart Button for troubleshooting">Smart Button Replica (#AG)</a></li>
       </ul>
     </li>
 
@@ -49,5 +51,7 @@
     </li>
   </ul>
 
+  <button type="button" class="theme-toggle" title="Toggle dark / light mode"
+          onclick="(function(){var h=document.documentElement;h.classList.toggle('light');try{localStorage.setItem('ag-theme',h.classList.contains('light')?'light':'dark');}catch(e){}})()">&#9681;</button>
   <a href="{{ url_for('smartpoint_demo') }}" class="topnav__consultant">&larr; Consultant view</a>
 </nav>

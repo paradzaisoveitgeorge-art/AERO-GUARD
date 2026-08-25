@@ -89,6 +89,25 @@
 </div>
 
 {% if current_user.role == "AGENCY_ADMIN" %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card__header">
+    <div class="card__title">Itinerary branding</div>
+    <div class="card__subtitle">How the "Verified &amp; Secured by AERO-GUARD" badge appears on documents your consultants generate</div>
+  </div>
+  <form method="post" action="{{ url_for('portal_branding') }}" style="padding:16px; display:flex; gap:24px; align-items:center; flex-wrap:wrap;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label class="portal-perm-item">
+      <input type="radio" name="badge_style" value="PROMINENT" {{ "checked" if (agency.badge_style or "PROMINENT") == "PROMINENT" else "" }} />
+      Prominent badge (logo + text on the document)
+    </label>
+    <label class="portal-perm-item">
+      <input type="radio" name="badge_style" value="SUBTLE" {{ "checked" if agency.badge_style == "SUBTLE" else "" }} />
+      Subtle footer mark (small text only)
+    </label>
+    <button type="submit" class="btn btn-primary" style="margin-left:auto;">Save</button>
+  </form>
+</div>
+
 <div class="card">
   <div class="card__header">
     <div class="card__title">Add sub-user</div>

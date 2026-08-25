@@ -28,10 +28,10 @@ demo Batches 1–3 are not rebuilt.
 | SB-4 | ✅ 2026-08-24 | One-click Auto-Fix | Per-violation **Auto-append** button that injects the exact fix command into the terminal (e.g. `3.APE-…`) — QC warning card clears once appended |
 | SB-5 | ✅ 2026-08-24 | Notify Helpdesk (Queue-on-Demand) | Button inside the #AG panel (and violation modal) creates a real escalation ticket with PNR context on the provider queue, without leaving the GDS |
 | SB-6 | ✅ 2026-08-24 | Chat deep-link with context | Panel footer live chat pushes the PNR context into the provider support thread; deep-link contract `?pnr=…&agency=…` honoured (full Agency-Portal chat arrives with Batch 3/4) |
-| SB-7 | ⬜ | Airline logo per segment | Itinerary maps carrier code → official airline logo on each flight segment row |
-| SB-8 | ⬜ | Baggage allowance per segment | Auto-inject the carrier's piece/weight concept (e.g. 2PC) per segment on multi-carrier itineraries |
-| SB-9 | ⬜ | Transit-visa warning | Multi-stop itineraries warn when the nationality needs a transit visa (reuses the visa dataset) |
-| SB-10 | ⬜ | Trust-badge placement toggle | Agency-level setting: "Verified & Secured by AERO-GUARD" shown prominently or as a subtle footer mark |
+| SB-7 | ✅ 2026-08-25 | Airline branding per segment | Carrier-code → brand-coloured airline mark + carrier name on each segment row (production swaps in licensed logo assets) |
+| SB-8 | ✅ 2026-08-25 | Baggage allowance per segment | Per-carrier piece/weight concept injected into each segment from the rules map (ET vs EK differ on the demo itinerary) |
+| SB-9 | ✅ 2026-08-25 | Transit-visa warning | Multi-stop itinerary shows a visa strip: transit ADD + destination DXB checks for the pax nationality, from the shared visa dataset |
+| SB-10 | ✅ 2026-08-25 | Trust-badge placement toggle | Agency admin toggles Prominent vs Subtle in the Portal profile; the #AG itinerary switches instantly |
 | SB-11 | ✅ 2026-08-24 | Tier-contextual violation popup | Violation modal shows penalty **contextualised by policy tier** ("GOLD POLICY · SKYLINK TRAVEL" chip) + numbered step-by-step remediation |
 | SB-12 | ✅ 2026-08-24 | Manifest limits | Travellers builder enforces the 9-seated-passenger GDS cap per PNR (infants excluded) with a split-booking prompt |
 | SB-13 | ✅ | Offline circuit breaker | Exists (degraded-mode banner); verify it matches spec: 3-second timeout → amber "AERO-GUARD Offline: Manual QC Required", never blocks the agent |
@@ -62,18 +62,18 @@ demo Batches 1–3 are not rebuilt.
 |---|--------|--------|--------|
 | PH-5 | ✅ 2026-08-25 | Broadcast engine | Admin posts once on the provider dashboard → broadcasts table → instantly on the provider feed **and** every Agency Portal + email push to agency admins (logged when SMTP off); per-item delete |
 | PH-6 | ✅ 2026-08-25 | Multi-tier escalation routing | Escalations carry a category (General→Tier 1, Financial→Tier 2, Technical→Tier 3) shown as queue chips on the provider board; portal filings route by type |
-| PH-7 | ⬜ | Agency performance & risk dashboard | Top vs struggling agencies, ADM-by-airline analysis, and a "system-wide vs single-agency" flag on error trends |
-| PH-8 | ⬜ | Predictive bypass alerts | Detect a sub-user repeatedly overriding the same warning; alert provider helpdesk + agency admin before an ADM lands |
+| PH-7 | ✅ 2026-08-25 | Agency performance & risk dashboard | AA Audit page: ADM-by-airline table with **SYSTEM-WIDE vs SINGLE-AGENCY** trend scope + top-vs-struggling agency compliance ranking, computed from real issuance |
+| PH-8 | ✅ 2026-08-25 | Predictive bypass alerts | Provider dashboard banner flags any user with ≥3 overrides (demo: tendai 3×) before an ADM lands |
 | PH-9 | ✅ | ADM spike alert | Exists (system-wide spike banner); verify criteria = same airline/route across multiple agencies within 24 h, and drive it from real override data |
-| PH-10 | 🟡 | Products section (module replica) | Internal access to agency-facing modules for troubleshooting (partially covered by `/provider/emulate`) |
+| PH-10 | ✅ 2026-08-25 | Products section (module replica) | Products menu → "Smart Button Replica (#AG)" opens the agency-facing terminal in REPLICA MODE for provider troubleshooting (alongside `/provider/emulate`) |
 
 ## E. Cross-cutting / platform
 
 | # | Status | Update | Detail |
 |---|--------|--------|--------|
-| XC-1 | 🟡 | Legal pages + chat disclaimer | Chat-start disclaimer + standing portal-footer disclaimer done (no refunds via chat, no airline representation); standalone ToS / SaaS / Privacy pages remain for Batch 5 |
-| XC-2 | ⬜ | Dark / Light mode toggle | Requested for late-shift agents; app is currently dark-only |
-| XC-3 | ⬜ | Public JSON API per spec | `POST /api/v1/compliance/validate` and `POST /api/v1/compliance/escalate` implementing the documented request/response payloads (+ ticket status URL) |
+| XC-1 | ✅ 2026-08-25 | Legal pages + chat disclaimer | Public `/legal` page with the doc's three clauses (ToS §12 ADM liability, SaaS §3 seats/named users, Privacy §5 tenancy isolation), linked from login + portal footer; chat-start disclaimer live since Batch 4 |
+| XC-2 | ✅ 2026-08-25 | Dark / Light mode toggle | ◑ toggle in the provider topbar + portal nav; token-remap light theme, persisted in localStorage, applied before first paint |
+| XC-3 | ✅ 2026-08-25 | Public JSON API per spec | `POST /api/v1/compliance/validate` + `/escalate` + `GET /api/v1/tickets/{id}` matching the documented payloads (rule codes, block_ticketing, airline advisories, status_url); X-API-Key auth |
 | XC-4 | ✅ 2026-08-25 | Responsive KPI cards | Portal pulse cards stack 4→2→1 columns on smaller screens; chart and 70/30 grid collapse full-width |
 
 ---
